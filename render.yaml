@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: misbahah-invoices
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run render:start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_ID
+        value: 19eb5b5d-c932-89a6-8000-0000a4fd53f8
+      - key: APP_SECRET
+        generateValue: true
+      - key: KIMI_AUTH_URL
+        value: https://auth.kimi.com
+      - key: KIMI_OPEN_URL
+        value: https://open.kimi.com
+      - key: VITE_KIMI_AUTH_URL
+        value: https://auth.kimi.com
+      - key: VITE_APP_ID
+        value: 19eb5b5d-c932-89a6-8000-0000a4fd53f8
