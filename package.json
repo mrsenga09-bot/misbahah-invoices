@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
-    "render:start": "npm run db:push && npm start",
+    "render:start": "npm start",
     "check": "tsc -b",
     "format": "prettier --write .",
     "test": "vitest run",

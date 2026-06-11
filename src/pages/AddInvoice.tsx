@@ -55,6 +55,7 @@ export default function AddInvoice() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const createMutation = trpc.invoice.create.useMutation({
@@ -62,6 +63,10 @@ export default function AddInvoice() {
       utils.invoice.list.invalidate();
       utils.invoice.stats.invalidate();
       navigate("/invoices");
+    },
+    onError: (error) => {
+      console.error("Failed to create invoice:", error);
+      setSubmitError("تعذر حفظ الفاتورة. حاول مرة أخرى أو استخدم صورة أصغر.");
     },
   });
 
@@ -80,6 +85,12 @@ export default function AddInvoice() {
   );
 
   const handleImageUpload = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setSubmitError("حجم الصورة أكبر من 10 ميجابايت. اختر صورة أصغر.");
+      return;
+    }
+
+    setSubmitError(null);
     const reader = new FileReader();
     reader.onloadend = () => {
       const result = reader.result as string;
@@ -189,6 +200,7 @@ export default function AddInvoice() {
     e.preventDefault();
     if (!validate()) return;
 
+    setSubmitError(null);
     createMutation.mutate({
       invoiceNumber: formData.invoiceNumber,
       date: formData.date,
@@ -564,6 +576,12 @@ export default function AddInvoice() {
           </div>
 
           {/* Submit */}
+          {submitError && (
+            <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {submitError}
+            </p>
+          )}
+
           <div className="flex items-center gap-3 pt-4">
             <button
               type="submit"
