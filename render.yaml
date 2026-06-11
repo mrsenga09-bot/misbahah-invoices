@@ -3,6 +3,7 @@ services:
     name: misbahah-invoices
     runtime: node
     plan: free
+    region: frankfurt
     buildCommand: npm ci && npm run build
     startCommand: npm run render:start
     envVars:
@@ -10,6 +11,8 @@ services:
         value: 20
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_SSL
+        value: true
       - key: APP_ID
         value: 19eb5b5d-c932-89a6-8000-0000a4fd53f8
       - key: APP_SECRET
