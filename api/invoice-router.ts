@@ -68,7 +68,10 @@ export const invoiceRouter = createRouter({
           "other",
         ]),
         description: z.string().optional(),
-        totalAmount: z.string().transform((val) => val),
+        totalAmount: z.string().refine((value) => {
+          const amount = Number(value);
+          return Number.isFinite(amount) && amount > 0 && amount <= 99_999_999.99;
+        }, "Invalid invoice amount"),
         imageUrl: z.string().optional(),
         notes: z.string().optional(),
         userId: z.number(),

@@ -13,6 +13,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Tesseract from "tesseract.js";
+import {
+  extractInvoiceData,
+  type ExtractedInvoiceData,
+} from "@/lib/invoice-ocr";
 
 const serviceTypes = [
   { value: "electricity", label: "كهرباء" },
@@ -25,13 +29,6 @@ const serviceTypes = [
   { value: "other", label: "أخرى" },
 ];
 
-interface ExtractedData {
-  vendorName?: string;
-  totalAmount?: string;
-  date?: string;
-  description?: string;
-}
-
 export default function AddInvoice() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,7 +38,7 @@ export default function AddInvoice() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
 
   const [formData, setFormData] = useState({
     invoiceNumber: `INV-${Date.now().toString(36).toUpperCase()}`,
@@ -119,9 +116,15 @@ export default function AddInvoice() {
 
       // Auto-fill form with extracted data
       if (extracted.vendorName) updateFormField("vendorName", extracted.vendorName);
-      if (extracted.totalAmount) updateFormField("totalAmount", extracted.totalAmount);
+      updateFormField("totalAmount", extracted.totalAmount ?? "");
       if (extracted.date) updateFormField("date", extracted.date);
       if (extracted.description) updateFormField("description", extracted.description);
+
+      if (!extracted.totalAmount) {
+        setSubmitError(
+          "تمت قراءة نص الفاتورة، لكن لم يتم التعرف على الإجمالي بثقة. أدخل المبلغ يدويًا.",
+        );
+      }
 
       setActiveTab("manual");
     } catch (error) {
@@ -129,43 +132,6 @@ export default function AddInvoice() {
     } finally {
       setIsScanning(false);
     }
-  };
-
-  const extractInvoiceData = (text: string): ExtractedData => {
-    const data: ExtractedData = {};
-
-    // Try to find amount - look for numbers followed by SAR, SR, or ر.س
-    const amountMatch =
-      text.match(/(?:total|amount|المبلغ|الإجمالي|المجموع)[\s:]*([\d,]+\.?\d*)/i) ||
-      text.match(/([\d,]+\.?\d*)\s*(?:SAR|SR|ر\.?س)/i) ||
-      text.match(/([\d,]+\.?\d{0,2})/);
-    if (amountMatch) {
-      data.totalAmount = amountMatch[1].replace(/,/g, "");
-    }
-
-    // Try to find date
-    const dateMatch =
-      text.match(/(\d{2}[\/\-]\d{2}[\/\-]\d{4})/) ||
-      text.match(/(\d{4}[\/\-]\d{2}[\/\-]\d{2})/);
-    if (dateMatch) {
-      const parts = dateMatch[1].split(/[\/\-]/);
-      if (parts[2]?.length === 4) {
-        data.date = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      } else if (parts[0]?.length === 4) {
-        data.date = `${parts[0]}-${parts[1]}-${parts[2]}`;
-      }
-    }
-
-    // Try to find vendor/shop name
-    const lines = text.split("\n").filter((l) => l.trim().length > 2);
-    if (lines.length > 0) {
-      data.vendorName = lines[0].trim().substring(0, 50);
-    }
-
-    // Description from remaining text
-    data.description = text.substring(0, 200).replace(/\n/g, " ");
-
-    return data;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,7 +152,13 @@ export default function AddInvoice() {
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.vendorName.trim()) newErrors.vendorName = "اسم المحل مطلوب";
-    if (!formData.totalAmount || isNaN(parseFloat(formData.totalAmount)))
+    const totalAmount = Number(formData.totalAmount);
+    if (
+      !formData.totalAmount ||
+      !Number.isFinite(totalAmount) ||
+      totalAmount <= 0 ||
+      totalAmount > 99_999_999.99
+    )
       newErrors.totalAmount = "المبلغ غير صالح";
     if (!formData.date) newErrors.date = "التاريخ مطلوب";
     if (!formData.invoiceNumber.trim())
