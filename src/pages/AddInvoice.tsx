@@ -42,6 +42,8 @@ export default function AddInvoice() {
 
   const [formData, setFormData] = useState({
     invoiceNumber: `INV-${Date.now().toString(36).toUpperCase()}`,
+    vehicleNumber: "",
+    odometer: "",
     date: new Date().toISOString().split("T")[0],
     vendorName: "",
     serviceType: "electricity",
@@ -59,6 +61,7 @@ export default function AddInvoice() {
     onSuccess: () => {
       utils.invoice.list.invalidate();
       utils.invoice.stats.invalidate();
+      utils.invoice.vehicles.invalidate();
       navigate("/invoices");
     },
     onError: (error) => {
@@ -118,6 +121,7 @@ export default function AddInvoice() {
       if (extracted.vendorName) updateFormField("vendorName", extracted.vendorName);
       updateFormField("totalAmount", extracted.totalAmount ?? "");
       if (extracted.date) updateFormField("date", extracted.date);
+      if (extracted.odometer) updateFormField("odometer", extracted.odometer);
       if (extracted.description) updateFormField("description", extracted.description);
 
       if (!extracted.totalAmount) {
@@ -151,6 +155,15 @@ export default function AddInvoice() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
+    if (!formData.vehicleNumber.trim())
+      newErrors.vehicleNumber = "رقم السيارة مطلوب";
+    if (
+      formData.odometer &&
+      (!Number.isInteger(Number(formData.odometer)) ||
+        Number(formData.odometer) < 0 ||
+        Number(formData.odometer) > 9_999_999)
+    )
+      newErrors.odometer = "قراءة العداد غير صالحة";
     if (!formData.vendorName.trim()) newErrors.vendorName = "اسم المحل مطلوب";
     const totalAmount = Number(formData.totalAmount);
     if (
@@ -175,6 +188,8 @@ export default function AddInvoice() {
     setSubmitError(null);
     createMutation.mutate({
       invoiceNumber: formData.invoiceNumber,
+      vehicleNumber: formData.vehicleNumber.trim(),
+      odometer: formData.odometer ? Number(formData.odometer) : undefined,
       date: formData.date,
       vendorName: formData.vendorName,
       serviceType: formData.serviceType as any,
@@ -428,6 +443,43 @@ export default function AddInvoice() {
               />
               {errors.date && (
                 <p className="text-red-400 text-xs">{errors.date}</p>
+              )}
+            </div>
+
+            {/* Vendor Name */}
+            <div className="space-y-2">
+              <label className="text-sm text-white/60">
+                رقم السيارة <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.vehicleNumber}
+                onChange={(e) => updateFormField("vehicleNumber", e.target.value)}
+                placeholder="مثال: أ ب ج 1234"
+                className={`w-full px-4 py-2.5 bg-white/5 border rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 transition-colors ${
+                  errors.vehicleNumber ? "border-red-500" : "border-white/10"
+                }`}
+              />
+              {errors.vehicleNumber && (
+                <p className="text-red-400 text-xs">{errors.vehicleNumber}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-white/60">عداد السيارة (كم)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={formData.odometer}
+                onChange={(e) => updateFormField("odometer", e.target.value)}
+                placeholder="يُكتب يدويًا أو يُقرأ من الفاتورة"
+                className={`w-full px-4 py-2.5 bg-white/5 border rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 transition-colors ${
+                  errors.odometer ? "border-red-500" : "border-white/10"
+                }`}
+              />
+              {errors.odometer && (
+                <p className="text-red-400 text-xs">{errors.odometer}</p>
               )}
             </div>
 

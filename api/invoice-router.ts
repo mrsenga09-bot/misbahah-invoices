@@ -2,7 +2,14 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { invoices } from "@db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, like, or, sql, type SQL } from "drizzle-orm";
+
+const amountSchema = z.string().refine((value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 && amount <= 99_999_999.99;
+}, "Invalid maintenance cost");
+
+const odometerSchema = z.number().int().min(0).max(9_999_999).optional();
 
 export const invoiceRouter = createRouter({
   list: publicQuery
@@ -17,14 +24,27 @@ export const invoiceRouter = createRouter({
     .query(async ({ input }) => {
       const db = getDb();
 
+      const filters: SQL[] = [];
+      if (input?.serviceType && input.serviceType !== "all") {
+        filters.push(eq(invoices.serviceType, input.serviceType as any));
+      }
+      if (input?.search) {
+        const search = `%${input.search}%`;
+        filters.push(
+          or(
+            like(invoices.vehicleNumber, search),
+            like(invoices.invoiceNumber, search),
+            like(invoices.vendorName, search),
+            like(invoices.description, search),
+          )!,
+        );
+      }
+
+      const where = filters.length > 0 ? and(...filters) : undefined;
       const results = await db
         .select()
         .from(invoices)
-        .where(
-          input?.serviceType && input.serviceType !== "all"
-            ? eq(invoices.serviceType, input.serviceType as any)
-            : undefined
-        )
+        .where(where)
         .orderBy(desc(invoices.createdAt))
         .limit(input?.limit || 50)
         .offset(input?.offset || 0);
@@ -32,7 +52,8 @@ export const invoiceRouter = createRouter({
       // Get total count
       const countResult = await db
         .select({ count: sql<number>`count(*)` })
-        .from(invoices);
+        .from(invoices)
+        .where(where);
 
       return {
         invoices: results,
@@ -55,6 +76,8 @@ export const invoiceRouter = createRouter({
     .input(
       z.object({
         invoiceNumber: z.string().min(1),
+        vehicleNumber: z.string().trim().min(1),
+        odometer: odometerSchema,
         date: z.string().transform((str) => new Date(str)),
         vendorName: z.string().min(1),
         serviceType: z.enum([
@@ -68,10 +91,7 @@ export const invoiceRouter = createRouter({
           "other",
         ]),
         description: z.string().optional(),
-        totalAmount: z.string().refine((value) => {
-          const amount = Number(value);
-          return Number.isFinite(amount) && amount > 0 && amount <= 99_999_999.99;
-        }, "Invalid invoice amount"),
+        totalAmount: amountSchema,
         imageUrl: z.string().optional(),
         notes: z.string().optional(),
         userId: z.number(),
@@ -81,6 +101,8 @@ export const invoiceRouter = createRouter({
       const db = getDb();
       const result = await db.insert(invoices).values({
         invoiceNumber: input.invoiceNumber,
+        vehicleNumber: input.vehicleNumber,
+        odometer: input.odometer ?? null,
         date: input.date,
         vendorName: input.vendorName,
         serviceType: input.serviceType,
@@ -98,6 +120,8 @@ export const invoiceRouter = createRouter({
       z.object({
         id: z.number(),
         invoiceNumber: z.string().optional(),
+        vehicleNumber: z.string().trim().min(1).optional(),
+        odometer: odometerSchema.nullable(),
         date: z.string().transform((str) => new Date(str)).optional(),
         vendorName: z.string().optional(),
         serviceType: z.enum([
@@ -111,7 +135,7 @@ export const invoiceRouter = createRouter({
           "other",
         ]).optional(),
         description: z.string().optional(),
-        totalAmount: z.string().optional(),
+        totalAmount: amountSchema.optional(),
         imageUrl: z.string().optional(),
         notes: z.string().optional(),
       })
@@ -129,6 +153,51 @@ export const invoiceRouter = createRouter({
       const db = getDb();
       await db.delete(invoices).where(eq(invoices.id, input.id));
       return { success: true };
+    }),
+
+  vehicles: publicQuery.query(async () => {
+    const db = getDb();
+    return db
+      .select({
+        vehicleNumber: invoices.vehicleNumber,
+        operationsCount: sql<number>`count(*)`,
+        totalCost: sql<string>`COALESCE(sum(${invoices.totalAmount}), 0)`,
+        latestMaintenance: sql<Date>`max(${invoices.date})`,
+        latestOdometer: sql<number | null>`max(${invoices.odometer})`,
+      })
+      .from(invoices)
+      .where(sql`${invoices.vehicleNumber} is not null and ${invoices.vehicleNumber} <> ''`)
+      .groupBy(invoices.vehicleNumber)
+      .orderBy(desc(sql`max(${invoices.date})`));
+  }),
+
+  vehicleHistory: publicQuery
+    .input(z.object({ vehicleNumber: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const operations = await db
+        .select()
+        .from(invoices)
+        .where(eq(invoices.vehicleNumber, input.vehicleNumber))
+        .orderBy(desc(invoices.date));
+
+      return {
+        vehicleNumber: input.vehicleNumber,
+        operations,
+        operationsCount: operations.length,
+        totalCost: operations.reduce(
+          (total, operation) => total + Number(operation.totalAmount),
+          0,
+        ),
+        latestOdometer: operations.reduce<number | null>(
+          (latest, operation) =>
+            operation.odometer !== null &&
+            (latest === null || operation.odometer > latest)
+              ? operation.odometer
+              : latest,
+          null,
+        ),
+      };
     }),
 
   stats: publicQuery.query(async () => {

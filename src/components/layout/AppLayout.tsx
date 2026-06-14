@@ -8,10 +8,12 @@ import {
   LogOut,
   Menu,
   Wrench,
+  Car,
 } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
+  { path: "/vehicles", label: "السيارات", icon: Car },
   { path: "/", label: "الرئيسية", icon: LayoutDashboard },
   { path: "/invoices", label: "الفواتير", icon: Receipt },
   { path: "/add-invoice", label: "فاتورة جديدة", icon: PlusCircle },

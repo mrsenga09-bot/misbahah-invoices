@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extractInvoiceAmount, extractInvoiceData } from "../src/lib/invoice-ocr";
+import {
+  extractInvoiceAmount,
+  extractInvoiceData,
+  extractOdometer,
+} from "../src/lib/invoice-ocr";
 
 describe("invoice OCR extraction", () => {
   it("does not treat a Saudi phone number as an amount", () => {
@@ -18,5 +22,9 @@ describe("invoice OCR extraction", () => {
     expect(extractInvoiceData("متجر الصيانة\nالتاريخ ١١/٠٦/٢٠٢٦").date).toBe(
       "2026-06-11",
     );
+  });
+
+  it("extracts an odometer reading", () => {
+    expect(extractOdometer("عداد السيارة: ١٢٥٤٠٠ كم")).toBe("125400");
   });
 });

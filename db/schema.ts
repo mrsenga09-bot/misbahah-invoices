@@ -32,6 +32,8 @@ export type InsertUser = typeof users.$inferInsert;
 export const invoices = mysqlTable("invoices", {
   id: serial("id").primaryKey(),
   invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
+  vehicleNumber: varchar("vehicle_number", { length: 100 }),
+  odometer: int("odometer"),
   date: timestamp("date").notNull(),
   vendorName: varchar("vendor_name", { length: 255 }).notNull(),
   serviceType: mysqlEnum("service_type", [

@@ -2,6 +2,7 @@ export interface ExtractedInvoiceData {
   vendorName?: string;
   totalAmount?: string;
   date?: string;
+  odometer?: string;
   description?: string;
 }
 
@@ -71,6 +72,14 @@ export function extractInvoiceAmount(text: string) {
   return undefined;
 }
 
+export function extractOdometer(text: string) {
+  const normalized = normalizeDigits(text);
+  const match = normalized.match(
+    /(?:عداد(?:\s+السيارة)?|الكيلومترات|الممشى|odometer|mileage|km)\s*[:：-]?\s*(\d{1,7})/iu,
+  );
+  return match?.[1];
+}
+
 function extractDate(text: string) {
   const normalized = normalizeDigits(text);
   const match =
@@ -92,6 +101,7 @@ export function extractInvoiceData(text: string): ExtractedInvoiceData {
     vendorName: lines[0]?.substring(0, 50),
     totalAmount: extractInvoiceAmount(text),
     date: extractDate(text),
+    odometer: extractOdometer(text),
     description: text.substring(0, 200).replace(/\n/g, " "),
   };
 }

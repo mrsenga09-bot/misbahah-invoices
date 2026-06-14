@@ -9,6 +9,8 @@ import {
   ArrowRight,
   Loader2,
   Trash2,
+  Car,
+  Gauge,
 } from "lucide-react";
 
 const serviceTypeLabels: Record<string, string> = {
@@ -36,6 +38,7 @@ export default function InvoiceDetails() {
     onSuccess: () => {
       utils.invoice.list.invalidate();
       utils.invoice.stats.invalidate();
+      utils.invoice.vehicles.invalidate();
       navigate("/invoices");
     },
   });
@@ -122,6 +125,32 @@ export default function InvoiceDetails() {
         {/* Details */}
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {invoice.vehicleNumber && (
+              <div className="flex items-start gap-3">
+                <Car className="w-5 h-5 text-orange-500 mt-0.5" />
+                <div>
+                  <p className="text-sm text-white/50">رقم السيارة</p>
+                  <Link
+                    to={`/vehicles/${encodeURIComponent(invoice.vehicleNumber)}`}
+                    className="text-white font-medium hover:text-orange-400"
+                  >
+                    {invoice.vehicleNumber}
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {invoice.odometer !== null && (
+              <div className="flex items-start gap-3">
+                <Gauge className="w-5 h-5 text-orange-500 mt-0.5" />
+                <div>
+                  <p className="text-sm text-white/50">عداد السيارة</p>
+                  <p className="text-white font-medium">
+                    {invoice.odometer.toLocaleString("ar-SA")} كم
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 text-orange-500 mt-0.5" />
               <div>

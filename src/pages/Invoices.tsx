@@ -6,6 +6,8 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  Car,
+  Gauge,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -50,6 +52,7 @@ export default function Invoices() {
     onSuccess: () => {
       utils.invoice.list.invalidate();
       utils.invoice.stats.invalidate();
+      utils.invoice.vehicles.invalidate();
     },
   });
 
@@ -153,6 +156,21 @@ export default function Invoices() {
                     {invoice.description || "لا يوجد وصف"}
                   </p>
                   <div className="flex items-center gap-4 mt-2 text-sm text-white/40">
+                    {invoice.vehicleNumber && (
+                      <Link
+                        to={`/vehicles/${encodeURIComponent(invoice.vehicleNumber)}`}
+                        className="flex items-center gap-1 text-orange-400 hover:text-orange-300"
+                      >
+                        <Car className="w-4 h-4" />
+                        {invoice.vehicleNumber}
+                      </Link>
+                    )}
+                    {invoice.odometer !== null && (
+                      <span className="flex items-center gap-1">
+                        <Gauge className="w-4 h-4" />
+                        {invoice.odometer.toLocaleString("ar-SA")} كم
+                      </span>
+                    )}
                     <span>
                       {new Date(invoice.date).toLocaleDateString("ar-SA", {
                         year: "numeric",
