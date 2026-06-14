@@ -34,6 +34,7 @@ export const invoiceRouter = createRouter({
           or(
             like(invoices.vehicleNumber, search),
             like(invoices.invoiceNumber, search),
+            like(invoices.maintenanceName, search),
             like(invoices.vendorName, search),
             like(invoices.description, search),
           )!,
@@ -78,6 +79,7 @@ export const invoiceRouter = createRouter({
         invoiceNumber: z.string().min(1),
         vehicleNumber: z.string().trim().min(1),
         odometer: odometerSchema,
+        maintenanceName: z.string().trim().min(1),
         date: z.string().transform((str) => new Date(str)),
         vendorName: z.string().min(1),
         serviceType: z.enum([
@@ -103,6 +105,7 @@ export const invoiceRouter = createRouter({
         invoiceNumber: input.invoiceNumber,
         vehicleNumber: input.vehicleNumber,
         odometer: input.odometer ?? null,
+        maintenanceName: input.maintenanceName,
         date: input.date,
         vendorName: input.vendorName,
         serviceType: input.serviceType,
@@ -122,6 +125,7 @@ export const invoiceRouter = createRouter({
         invoiceNumber: z.string().optional(),
         vehicleNumber: z.string().trim().min(1).optional(),
         odometer: odometerSchema.nullable(),
+        maintenanceName: z.string().trim().min(1).optional(),
         date: z.string().transform((str) => new Date(str)).optional(),
         vendorName: z.string().optional(),
         serviceType: z.enum([
@@ -196,6 +200,34 @@ export const invoiceRouter = createRouter({
               ? operation.odometer
               : latest,
           null,
+        ),
+      };
+    }),
+
+  maintenanceReport: publicQuery
+    .input(z.object({ vehicleNumber: z.string().trim().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = getDb();
+      const vehicleNumber = input?.vehicleNumber;
+      const operations = await db
+        .select()
+        .from(invoices)
+        .where(
+          vehicleNumber
+            ? like(invoices.vehicleNumber, `%${vehicleNumber}%`)
+            : undefined,
+        )
+        .orderBy(desc(invoices.date));
+
+      return {
+        operations,
+        operationsCount: operations.length,
+        vehiclesCount: new Set(
+          operations.map((operation) => operation.vehicleNumber).filter(Boolean),
+        ).size,
+        totalCost: operations.reduce(
+          (total, operation) => total + Number(operation.totalAmount),
+          0,
         ),
       };
     }),

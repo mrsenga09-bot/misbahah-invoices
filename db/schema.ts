@@ -34,6 +34,7 @@ export const invoices = mysqlTable("invoices", {
   invoiceNumber: varchar("invoice_number", { length: 50 }).notNull(),
   vehicleNumber: varchar("vehicle_number", { length: 100 }),
   odometer: int("odometer"),
+  maintenanceName: varchar("maintenance_name", { length: 255 }),
   date: timestamp("date").notNull(),
   vendorName: varchar("vendor_name", { length: 255 }).notNull(),
   serviceType: mysqlEnum("service_type", [

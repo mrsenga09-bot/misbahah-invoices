@@ -44,6 +44,7 @@ export default function AddInvoice() {
     invoiceNumber: `INV-${Date.now().toString(36).toUpperCase()}`,
     vehicleNumber: "",
     odometer: "",
+    maintenanceName: "",
     date: new Date().toISOString().split("T")[0],
     vendorName: "",
     serviceType: "electricity",
@@ -157,6 +158,8 @@ export default function AddInvoice() {
     const newErrors: Record<string, string> = {};
     if (!formData.vehicleNumber.trim())
       newErrors.vehicleNumber = "رقم السيارة مطلوب";
+    if (!formData.maintenanceName.trim())
+      newErrors.maintenanceName = "اسم عملية الصيانة مطلوب";
     if (
       formData.odometer &&
       (!Number.isInteger(Number(formData.odometer)) ||
@@ -190,6 +193,7 @@ export default function AddInvoice() {
       invoiceNumber: formData.invoiceNumber,
       vehicleNumber: formData.vehicleNumber.trim(),
       odometer: formData.odometer ? Number(formData.odometer) : undefined,
+      maintenanceName: formData.maintenanceName.trim(),
       date: formData.date,
       vendorName: formData.vendorName,
       serviceType: formData.serviceType as any,
@@ -443,6 +447,25 @@ export default function AddInvoice() {
               />
               {errors.date && (
                 <p className="text-red-400 text-xs">{errors.date}</p>
+              )}
+            </div>
+
+            {/* Vendor Name */}
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm text-white/60">
+                اسم عملية الصيانة <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.maintenanceName}
+                onChange={(e) => updateFormField("maintenanceName", e.target.value)}
+                placeholder="مثال: تغيير زيت المحرك والفلاتر"
+                className={`w-full px-4 py-2.5 bg-white/5 border rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500/50 transition-colors ${
+                  errors.maintenanceName ? "border-red-500" : "border-white/10"
+                }`}
+              />
+              {errors.maintenanceName && (
+                <p className="text-red-400 text-xs">{errors.maintenanceName}</p>
               )}
             </div>
 

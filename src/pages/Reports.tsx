@@ -1,389 +1,173 @@
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
-import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
-} from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-} from "recharts";
-
-const serviceTypeLabels: Record<string, string> = {
-  electricity: "كهرباء",
-  plumbing: "سباكة",
-  hvac: "تكييف",
-  electronics: "إلكترونيات",
-  carpentry: "نجارة",
-  painting: "دهان",
-  cleaning: "تنظيف",
-  other: "أخرى",
-};
-
-const COLORS = [
-  "#ea580c",
-  "#3b82f6",
-  "#10b981",
-  "#8b5cf6",
-  "#f59e0b",
-  "#ec4899",
-  "#06b6d4",
-  "#6b7280",
-];
+import { Car, Gauge, Printer, Receipt, Search, WalletCards, X } from "lucide-react";
 
 export default function Reports() {
-  const { data: stats, isLoading } = trpc.invoice.stats.useQuery();
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const { data, isLoading } = trpc.invoice.maintenanceReport.useQuery({
+    vehicleNumber: vehicleSearch.trim() || undefined,
+  });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full loading-spinner" />
-      </div>
-    );
-  }
-
-  const totalAmount = parseFloat(stats?.totalAmount || "0");
-  const averageAmount = parseFloat(stats?.averageAmount || "0");
-
-  // Prepare pie chart data
-  const pieData =
-    stats?.byServiceType.map((item) => ({
-      name: serviceTypeLabels[item.type] || item.type,
-      value: parseFloat(item.total),
-      count: item.count,
-    })) || [];
-
-  // Prepare monthly chart data
-  const monthlyData =
-    stats?.monthlyStats.map((item) => ({
-      month: item.month,
-      total: parseFloat(item.total),
-      count: item.count,
-    })) || [];
-
-  // Calculate trend
-  const hasMultipleMonths = monthlyData.length >= 2;
-  const lastMonth = monthlyData[monthlyData.length - 1]?.total || 0;
-  const prevMonth = monthlyData[monthlyData.length - 2]?.total || 0;
-  const trend =
-    hasMultipleMonths && prevMonth > 0
-      ? ((lastMonth - prevMonth) / prevMonth) * 100
-      : 0;
+  const generatedAt = new Date().toLocaleString("ar-SA", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
 
   return (
-    <div className="animate-fade-in space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">التقارير والإحصائيات</h1>
-        <p className="text-white/50 mt-1">
-          نظرة شاملة على فواتير الصيانة والمصاريف
-        </p>
+    <div className="maintenance-report animate-fade-in space-y-6">
+      <div className="report-header flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <p className="hidden print:block text-sm text-gray-500 mb-1">نظام مصباحة لإدارة الصيانة</p>
+          <h1 className="text-2xl md:text-3xl font-bold">تقرير عمليات الصيانة</h1>
+          <p className="text-white/50 print:text-gray-600 mt-1">
+            تقرير شامل لجميع عمليات الصيانة والتكاليف المسجلة
+          </p>
+          <p className="hidden print:block text-xs text-gray-500 mt-2">تاريخ إصدار التقرير: {generatedAt}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="no-print inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors"
+        >
+          <Printer className="w-4 h-4" />
+          طباعة التقرير
+        </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard
-          title="إجمالي الفواتير"
-          value={stats?.totalInvoices || 0}
-          subtitle="فاتورة مسجلة"
-          icon={<BarChart3 className="w-5 h-5" />}
-          color="orange"
-        />
-        <SummaryCard
-          title="إجمالي المصاريف"
-          value={`${totalAmount.toLocaleString("ar-SA")} ر.س`}
-          subtitle="المجموع الكلي"
-          icon={<TrendingUp className="w-5 h-5" />}
-          color="green"
-        />
-        <SummaryCard
-          title="متوسط الفاتورة"
-          value={`${averageAmount.toLocaleString("ar-SA")} ر.س`}
-          subtitle="لكل فاتورة"
-          icon={<Calendar className="w-5 h-5" />}
-          color="blue"
-        />
-        <SummaryCard
-          title="المتغير الشهري"
-          value={`${Math.abs(trend).toFixed(1)}%`}
-          subtitle={trend >= 0 ? "زيادة" : "انخفاض"}
-          icon={
-            trend >= 0 ? (
-              <TrendingUp className="w-5 h-5" />
-            ) : (
-              <TrendingDown className="w-5 h-5" />
-            )
-          }
-          color={trend >= 0 ? "green" : "red"}
-        />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Expenses Chart */}
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-6">المصاريف الشهرية</h3>
-          {monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={monthlyData}>
-                <defs>
-                  <linearGradient
-                    id="colorTotal"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor="#ea580c"
-                      stopOpacity={0.3}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="#ea580c"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="rgba(255,255,255,0.1)"
-                />
-                <XAxis
-                  dataKey="month"
-                  stroke="rgba(255,255,255,0.3)"
-                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
-                />
-                <YAxis
-                  stroke="rgba(255,255,255,0.3)"
-                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
-                  tickFormatter={(v) => `${v.toLocaleString()}`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1a1a1a",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "8px",
-                    color: "#fff",
-                  }}
-                  formatter={(value: number) =>
-                    [`${value.toLocaleString()} ر.س`, "المبلغ"]
-                  }
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total"
-                  stroke="#ea580c"
-                  fillOpacity={1}
-                  fill="url(#colorTotal)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-white/30">
-              لا توجد بيانات كافية
-            </div>
+      <div className="no-print glass-card rounded-xl p-4">
+        <label htmlFor="vehicle-report-search" className="block text-sm text-white/60 mb-2">
+          البحث برقم السيارة
+        </label>
+        <div className="relative">
+          <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+          <input
+            id="vehicle-report-search"
+            type="search"
+            value={vehicleSearch}
+            onChange={(event) => setVehicleSearch(event.target.value)}
+            placeholder="اكتب رقم السيارة لعرض تقريرها..."
+            className="w-full pr-12 pl-12 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/10 transition-all"
+          />
+          {vehicleSearch && (
+            <button
+              type="button"
+              onClick={() => setVehicleSearch("")}
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 text-white/40 hover:text-white rounded-lg hover:bg-white/10"
+              aria-label="مسح البحث"
+            >
+              <X className="w-4 h-4" />
+            </button>
           )}
         </div>
-
-        {/* Service Type Distribution */}
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-6">
-            توزيع المصاريف حسب النوع
-          </h3>
-          {pieData.length > 0 ? (
-            <div className="flex flex-col items-center">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {pieData.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "#1a1a1a",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "8px",
-                      color: "#fff",
-                    }}
-                    formatter={(value: number) =>
-                      [`${value.toLocaleString()} ر.س`, "المبلغ"]
-                    }
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-wrap gap-3 justify-center mt-2">
-                {pieData.map((entry, index) => (
-                  <div
-                    key={entry.name}
-                    className="flex items-center gap-1.5 text-xs"
-                  >
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{
-                        backgroundColor: COLORS[index % COLORS.length],
-                      }}
-                    />
-                    <span className="text-white/60">{entry.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-white/30">
-              لا توجد بيانات كافية
-            </div>
-          )}
-        </div>
+        {vehicleSearch && (
+          <p className="text-xs text-orange-400 mt-2">النتائج المطابقة لرقم السيارة: {vehicleSearch}</p>
+        )}
       </div>
 
-      {/* Service Type Details Table */}
-      {stats?.byServiceType && stats.byServiceType.length > 0 && (
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-4">تفاصيل حسب نوع الخدمة</h3>
+      <div className="report-summary grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <SummaryCard icon={<Receipt className="w-5 h-5" />} title="عمليات الصيانة" value={data?.operationsCount || 0} />
+        <SummaryCard icon={<Car className="w-5 h-5" />} title="عدد السيارات" value={data?.vehiclesCount || 0} />
+        <SummaryCard
+          icon={<WalletCards className="w-5 h-5" />}
+          title="إجمالي التكاليف"
+          value={`${(data?.totalCost || 0).toLocaleString("ar-SA")} ر.س`}
+          highlight
+        />
+      </div>
+
+      <div className="report-table glass-card rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/10 print:border-gray-300 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">تفاصيل عمليات الصيانة</h2>
+            <p className="text-sm text-white/40 print:text-gray-500 mt-1">
+              {vehicleSearch ? `السيارة: ${vehicleSearch}` : "جميع السيارات"}
+            </p>
+          </div>
+          <span className="text-sm text-white/40 print:text-gray-600">{data?.operationsCount || 0} عملية</span>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center h-56">
+            <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full loading-spinner" />
+          </div>
+        ) : data?.operations.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[980px]">
               <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-right py-3 px-4 text-sm text-white/50 font-medium">
-                    نوع الخدمة
-                  </th>
-                  <th className="text-center py-3 px-4 text-sm text-white/50 font-medium">
-                    عدد الفواتير
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm text-white/50 font-medium">
-                    إجمالي المبلغ
-                  </th>
+                <tr className="bg-white/5 print:bg-gray-100 border-b border-white/10 print:border-gray-300">
+                  <th className="text-right py-3 px-4 text-sm font-medium text-white/60 print:text-black">م</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-white/60 print:text-black">رقم السيارة</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-white/60 print:text-black">اسم عملية الصيانة</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-white/60 print:text-black">التاريخ</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-white/60 print:text-black">العداد</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-white/60 print:text-black">مركز الصيانة</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-white/60 print:text-black">التكلفة</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.byServiceType.map((item, index) => (
-                  <tr
-                    key={item.type}
-                    className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                  >
+                {data.operations.map((operation, index) => (
+                  <tr key={operation.id} className="border-b border-white/5 print:border-gray-200 last:border-0">
+                    <td className="py-3 px-4 text-white/40 print:text-gray-600">{index + 1}</td>
+                    <td className="py-3 px-4 font-semibold whitespace-nowrap">{operation.vehicleNumber || "غير مسجل"}</td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{
-                            backgroundColor:
-                              COLORS[index % COLORS.length],
-                          }}
-                        />
-                        <span className="text-white">
-                          {serviceTypeLabels[item.type] || item.type}
-                        </span>
-                      </div>
+                      <p className="font-medium">{operation.maintenanceName || operation.description || "عملية صيانة"}</p>
+                      {operation.description && operation.maintenanceName && (
+                        <p className="text-xs text-white/40 print:text-gray-500 mt-1 max-w-xs">{operation.description}</p>
+                      )}
                     </td>
-                    <td className="py-3 px-4 text-center text-white/70">
-                      {item.count}
+                    <td className="py-3 px-4 whitespace-nowrap">{new Date(operation.date).toLocaleDateString("ar-SA")}</td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {operation.odometer !== null ? (
+                        <span className="inline-flex items-center gap-1"><Gauge className="w-4 h-4 no-print" />{operation.odometer.toLocaleString("ar-SA")} كم</span>
+                      ) : "-"}
                     </td>
-                    <td className="py-3 px-4 text-left text-white font-medium">
-                      {parseFloat(item.total).toLocaleString("ar-SA")} ر.س
+                    <td className="py-3 px-4">{operation.vendorName}</td>
+                    <td className="py-3 px-4 text-left font-bold text-orange-500 print:text-black whitespace-nowrap">
+                      {Number(operation.totalAmount).toLocaleString("ar-SA")} ر.س
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="bg-orange-600/10 print:bg-gray-100 border-t-2 border-orange-500/30 print:border-gray-400">
+                  <td colSpan={6} className="py-4 px-4 font-bold">الإجمالي</td>
+                  <td className="py-4 px-4 text-left font-bold text-lg text-orange-500 print:text-black whitespace-nowrap">
+                    {(data.totalCost || 0).toLocaleString("ar-SA")} ر.س
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
-        </div>
-      )}
-
-      {/* Monthly Count Chart */}
-      {monthlyData.length > 0 && (
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="text-lg font-semibold mb-6">عدد الفواتير الشهري</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.1)"
-              />
-              <XAxis
-                dataKey="month"
-                stroke="rgba(255,255,255,0.3)"
-                tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
-              />
-              <YAxis
-                stroke="rgba(255,255,255,0.3)"
-                tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#1a1a1a",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "8px",
-                  color: "#fff",
-                }}
-                formatter={(value: number) => [`${value} فاتورة`, "العدد"]}
-              />
-              <Bar dataKey="count" fill="#ea580c" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        ) : (
+          <div className="py-16 text-center">
+            <Car className="w-14 h-14 text-white/10 mx-auto mb-3" />
+            <p className="text-white/50">لا توجد عمليات صيانة مطابقة</p>
+            <p className="text-white/30 text-sm mt-1">راجع رقم السيارة أو امسح البحث لعرض جميع العمليات</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function SummaryCard({
+  icon,
   title,
   value,
-  subtitle,
-  icon,
-  color,
+  highlight = false,
 }: {
+  icon: React.ReactNode;
   title: string;
   value: string | number;
-  subtitle: string;
-  icon: React.ReactNode;
-  color: string;
+  highlight?: boolean;
 }) {
-  const colorMap: Record<string, string> = {
-    orange: "bg-orange-600/20 text-orange-500",
-    green: "bg-green-600/20 text-green-500",
-    blue: "bg-blue-600/20 text-blue-500",
-    red: "bg-red-600/20 text-red-500",
-  };
-
   return (
-    <div className="glass-card glass-card-hover rounded-xl p-5">
-      <div className="flex items-start justify-between mb-3">
-        <div
-          className={`p-2 rounded-lg ${colorMap[color] || colorMap.orange}`}
-        >
-          {icon}
-        </div>
+    <div className="glass-card rounded-xl p-5 print:border print:border-gray-300 print:bg-white">
+      <div className="flex items-center gap-2 text-white/50 print:text-gray-600 text-sm">
+        <span className="text-orange-500 print:text-black">{icon}</span>
+        {title}
       </div>
-      <p className="text-white/50 text-sm mb-1">{title}</p>
-      <p className="text-xl font-bold text-white mb-1">{value}</p>
-      <p className="text-white/40 text-xs">{subtitle}</p>
+      <p className={`text-2xl font-bold mt-2 ${highlight ? "text-orange-500 print:text-black" : ""}`}>{value}</p>
     </div>
   );
 }

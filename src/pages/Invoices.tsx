@@ -150,7 +150,7 @@ export default function Invoices() {
                     )}
                   </div>
                   <h3 className="text-white font-semibold text-lg">
-                    {invoice.vendorName}
+                    {invoice.maintenanceName || invoice.vendorName}
                   </h3>
                   <p className="text-white/50 text-sm mt-1">
                     {invoice.description || "لا يوجد وصف"}

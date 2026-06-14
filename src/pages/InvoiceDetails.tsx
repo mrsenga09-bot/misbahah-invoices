@@ -124,6 +124,12 @@ export default function InvoiceDetails() {
 
         {/* Details */}
         <div className="p-6 space-y-4">
+          {invoice.maintenanceName && (
+            <div className="pb-4 border-b border-white/10">
+              <p className="text-sm text-white/50">اسم عملية الصيانة</p>
+              <p className="text-xl font-bold text-white mt-1">{invoice.maintenanceName}</p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {invoice.vehicleNumber && (
               <div className="flex items-start gap-3">
