@@ -1,6 +1,7 @@
 import { trpc } from "@/providers/trpc";
 import { Link, useParams } from "react-router";
-import { ArrowRight, Calendar, Car, FileImage, Gauge, HardHat, Pencil, Receipt, Store, WalletCards, Wrench } from "lucide-react";
+import { ArrowRight, Calendar, Car, Download, FileImage, Gauge, HardHat, Pencil, Printer, Receipt, Store, WalletCards, Wrench } from "lucide-react";
+import { exportAssetMaintenanceExcel, printMaintenanceReport } from "@/lib/maintenance-export";
 
 const statusLabels = { active: "تعمل", maintenance: "تحت الصيانة", inactive: "متوقفة" };
 
@@ -10,9 +11,18 @@ export default function VehicleHistory() {
   if (isLoading) return <div className="h-64 flex items-center justify-center"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full loading-spinner" /></div>;
   const asset = data?.asset;
   const Icon = asset?.assetType === "equipment" ? HardHat : Car;
+  const reportData = data ? {
+    title: `سجل صيانة ${vehicleNumber}`,
+    subtitle: "التقرير الكامل لعمليات الصيانة والفواتير والتكاليف",
+    asset,
+    operations: data.operations,
+    totalCost: data.totalCost,
+    monthlyCost: data.monthlyCost,
+    yearlyCost: data.yearlyCost,
+  } : null;
 
   return <div className="animate-fade-in space-y-6">
-    <Link to="/vehicles" className="inline-flex items-center gap-2 text-white/50 hover:text-white"><ArrowRight className="w-4 h-4" /> العودة للأسطول</Link>
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><Link to="/vehicles" className="inline-flex items-center gap-2 text-white/50 hover:text-white"><ArrowRight className="w-4 h-4" /> العودة للأسطول</Link><div className="flex flex-wrap gap-2"><button type="button" disabled={!reportData} onClick={() => reportData && printMaintenanceReport(reportData)} className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/15 disabled:opacity-40 rounded-lg"><Printer className="w-4 h-4" /> طباعة سجل الأصل</button><button type="button" disabled={!reportData} onClick={() => reportData && exportAssetMaintenanceExcel(reportData)} className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 rounded-lg"><Download className="w-4 h-4" /> تحميل Excel</button></div></div>
     <div className="glass-card rounded-2xl p-6"><div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5"><div className="flex items-start gap-4"><div className="w-14 h-14 rounded-xl bg-orange-600/15 flex items-center justify-center"><Icon className="w-7 h-7 text-orange-500" /></div><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold">{vehicleNumber}</h1>{asset && <span className="px-2.5 py-1 rounded-full text-xs bg-white/10">{statusLabels[asset.status]}</span>}</div><p className="text-white/50 mt-1">{[asset?.name, asset?.make, asset?.model, asset?.year].filter(Boolean).join(" · ") || "ملف صيانة الأصل"}</p>{asset?.department && <p className="text-sm text-white/35 mt-2">القسم / المشروع: {asset.department}</p>}</div></div><Link to={`/add-invoice?vehicle=${encodeURIComponent(vehicleNumber)}`} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 rounded-lg"><Wrench className="w-4 h-4" /> تسجيل صيانة لهذا الأصل</Link></div>
       {asset && <><div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/10"><Info label="نوع الأصل" value={asset.assetType === "equipment" ? "معدة" : "سيارة"} /><Info label="رقم الشاسيه" value={asset.chassisNumber || "-"} /><Info label="الماركة والموديل" value={[asset.make, asset.model].filter(Boolean).join(" ") || "-"} /><Info label="ملاحظات" value={asset.notes || "-"} /></div><Link to={`/vehicles/${encodeURIComponent(vehicleNumber)}/edit`} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-orange-400 mt-5"><Pencil className="w-4 h-4" /> تعديل بيانات الأصل وحالته</Link></>}
     </div>
