@@ -18,7 +18,7 @@ export default function Reports() {
     <div className="maintenance-report animate-fade-in space-y-6">
       <div className="report-header flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <p className="hidden print:block text-sm text-gray-500 mb-1">شركة نبيل عبد الله ابو نهية - إدارة صيانة الأسطول</p>
+          <p className="hidden print:block text-sm text-gray-500 mb-1">شركة نبيل عبد الله ابو نهية - إدارة صيانة الأسطول - إعداد محمد عبد العليم</p>
           <h1 className="text-2xl md:text-3xl font-bold">تقرير عمليات الصيانة</h1>
           <p className="text-white/50 print:text-gray-600 mt-1">
             تقرير شامل لجميع عمليات الصيانة والتكاليف المسجلة
