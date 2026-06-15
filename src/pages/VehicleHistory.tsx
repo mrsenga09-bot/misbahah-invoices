@@ -1,36 +1,25 @@
 import { trpc } from "@/providers/trpc";
 import { Link, useParams } from "react-router";
-import { ArrowRight, Calendar, Car, Gauge, Receipt, Store, Wrench } from "lucide-react";
+import { ArrowRight, Calendar, Car, FileImage, Gauge, HardHat, Pencil, Receipt, Store, WalletCards, Wrench } from "lucide-react";
+
+const statusLabels = { active: "تعمل", maintenance: "تحت الصيانة", inactive: "متوقفة" };
 
 export default function VehicleHistory() {
   const { vehicleNumber = "" } = useParams<{ vehicleNumber: string }>();
-  const { data, isLoading } = trpc.invoice.vehicleHistory.useQuery({ vehicleNumber }, { enabled: Boolean(vehicleNumber) });
+  const { data, isLoading } = trpc.fleet.get.useQuery({ assetNumber: vehicleNumber }, { enabled: Boolean(vehicleNumber) });
+  if (isLoading) return <div className="h-64 flex items-center justify-center"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full loading-spinner" /></div>;
+  const asset = data?.asset;
+  const Icon = asset?.assetType === "equipment" ? HardHat : Car;
 
-  if (isLoading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full loading-spinner" /></div>;
-
-  return (
-    <div className="animate-fade-in space-y-6">
-      <Link to="/vehicles" className="inline-flex items-center gap-2 text-white/50 hover:text-white"><ArrowRight className="w-4 h-4" /> العودة للسيارات</Link>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-orange-600/20 flex items-center justify-center"><Car className="w-7 h-7 text-orange-500" /></div><div><p className="text-white/40 text-sm">سجل السيارة</p><h1 className="text-2xl md:text-3xl font-bold">{vehicleNumber}</h1></div></div>
-        <Link to="/add-invoice" className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 rounded-lg font-medium"><Wrench className="w-4 h-4" /> إضافة صيانة</Link>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="glass-card rounded-xl p-4"><p className="text-white/40 text-sm">عمليات الصيانة</p><p className="text-2xl font-bold mt-1">{data?.operationsCount || 0}</p></div>
-        <div className="glass-card rounded-xl p-4"><p className="text-white/40 text-sm">إجمالي التكاليف</p><p className="text-2xl font-bold text-orange-500 mt-1">{(data?.totalCost || 0).toLocaleString("ar-SA")} ر.س</p></div>
-        <div className="glass-card rounded-xl p-4"><div className="flex items-center gap-2 text-white/40 text-sm"><Gauge className="w-4 h-4" /> آخر قراءة عداد</div><p className="text-2xl font-bold mt-1">{data?.latestOdometer !== null && data?.latestOdometer !== undefined ? `${data.latestOdometer.toLocaleString("ar-SA")} كم` : "غير مسجل"}</p></div>
-      </div>
-      <div className="space-y-3">
-        <h2 className="text-xl font-bold">جميع عمليات الصيانة</h2>
-        {data?.operations.length ? data.operations.map((operation) => (
-          <Link key={operation.id} to={`/invoices/${operation.id}`} className="glass-card glass-card-hover rounded-xl p-5 block">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div><div className="flex flex-wrap items-center gap-3 text-sm text-white/50"><span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(operation.date).toLocaleDateString("ar-SA")}</span><span className="flex items-center gap-1"><Store className="w-4 h-4" />{operation.vendorName}</span>{operation.odometer !== null && <span className="flex items-center gap-1"><Gauge className="w-4 h-4" />{operation.odometer.toLocaleString("ar-SA")} كم</span>}</div><p className="font-semibold mt-2">{operation.maintenanceName || operation.description || `فاتورة ${operation.invoiceNumber}`}</p></div>
-              <div className="flex items-center gap-2 text-xl font-bold text-orange-500"><Receipt className="w-5 h-5" />{Number(operation.totalAmount).toLocaleString("ar-SA")} ر.س</div>
-            </div>
-          </Link>
-        )) : <div className="glass-card rounded-xl p-10 text-center text-white/40">لا توجد عمليات صيانة لهذه السيارة</div>}
-      </div>
+  return <div className="animate-fade-in space-y-6">
+    <Link to="/vehicles" className="inline-flex items-center gap-2 text-white/50 hover:text-white"><ArrowRight className="w-4 h-4" /> العودة للأسطول</Link>
+    <div className="glass-card rounded-2xl p-6"><div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5"><div className="flex items-start gap-4"><div className="w-14 h-14 rounded-xl bg-orange-600/15 flex items-center justify-center"><Icon className="w-7 h-7 text-orange-500" /></div><div><div className="flex flex-wrap items-center gap-2"><h1 className="text-3xl font-bold">{vehicleNumber}</h1>{asset && <span className="px-2.5 py-1 rounded-full text-xs bg-white/10">{statusLabels[asset.status]}</span>}</div><p className="text-white/50 mt-1">{[asset?.name, asset?.make, asset?.model, asset?.year].filter(Boolean).join(" · ") || "ملف صيانة الأصل"}</p>{asset?.department && <p className="text-sm text-white/35 mt-2">القسم / المشروع: {asset.department}</p>}</div></div><Link to={`/add-invoice?vehicle=${encodeURIComponent(vehicleNumber)}`} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 rounded-lg"><Wrench className="w-4 h-4" /> تسجيل صيانة لهذا الأصل</Link></div>
+      {asset && <><div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/10"><Info label="نوع الأصل" value={asset.assetType === "equipment" ? "معدة" : "سيارة"} /><Info label="رقم الشاسيه" value={asset.chassisNumber || "-"} /><Info label="الماركة والموديل" value={[asset.make, asset.model].filter(Boolean).join(" ") || "-"} /><Info label="ملاحظات" value={asset.notes || "-"} /></div><Link to={`/vehicles/${encodeURIComponent(vehicleNumber)}/edit`} className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-orange-400 mt-5"><Pencil className="w-4 h-4" /> تعديل بيانات الأصل وحالته</Link></>}
     </div>
-  );
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4"><CostCard label="عدد الصيانات" value={data?.operationsCount || 0} icon={<Receipt />} /><CostCard label="تكلفة الشهر" value={`${(data?.monthlyCost || 0).toLocaleString("ar-SA")} ر.س`} icon={<Calendar />} /><CostCard label="تكلفة السنة" value={`${(data?.yearlyCost || 0).toLocaleString("ar-SA")} ر.س`} icon={<WalletCards />} highlight /><CostCard label="إجمالي التكلفة" value={`${(data?.totalCost || 0).toLocaleString("ar-SA")} ر.س`} icon={<WalletCards />} /><CostCard label="آخر عداد" value={data?.latestOdometer !== null && data?.latestOdometer !== undefined ? `${data.latestOdometer.toLocaleString("ar-SA")} كم` : "-"} icon={<Gauge />} /></div>
+    <div><div className="flex items-center justify-between mb-4"><div><h2 className="text-xl font-bold">سجل الصيانة الكامل</h2><p className="text-white/40 text-sm mt-1">جميع الأعمال والفواتير مرتبة من الأحدث</p></div></div>{data?.operations.length ? <div className="space-y-3">{data.operations.map((op) => <Link key={op.id} to={`/invoices/${op.id}`} className="glass-card glass-card-hover rounded-xl p-5 block"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div className="flex-1"><div className="flex flex-wrap gap-3 text-sm text-white/45"><span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(op.date).toLocaleDateString("ar-SA")}</span><span className="flex items-center gap-1"><Store className="w-4 h-4" />{op.vendorName}</span>{op.odometer !== null && <span className="flex items-center gap-1"><Gauge className="w-4 h-4" />{op.odometer.toLocaleString("ar-SA")} كم</span>}{op.imageUrl && <span className="flex items-center gap-1 text-blue-400"><FileImage className="w-4 h-4" /> فاتورة مرفقة</span>}</div><h3 className="text-lg font-semibold mt-2">{op.maintenanceName || op.description || "عملية صيانة"}</h3>{op.description && op.maintenanceName && <p className="text-white/40 text-sm mt-1 line-clamp-2">{op.description}</p>}</div><div className="text-xl font-bold text-orange-500 whitespace-nowrap">{Number(op.totalAmount).toLocaleString("ar-SA")} ر.س</div></div></Link>)}</div> : <div className="glass-card rounded-xl p-12 text-center text-white/40">لا توجد عمليات صيانة مسجلة لهذا الأصل</div>}</div>
+  </div>;
 }
+
+function CostCard({ label, value, icon, highlight }: { label: string; value: string | number; icon: React.ReactElement; highlight?: boolean }) { return <div className="glass-card rounded-xl p-4"><div className="flex items-center gap-2 text-white/40 text-sm">{<span className="[&>svg]:w-4 [&>svg]:h-4">{icon}</span>}{label}</div><p className={`text-xl font-bold mt-2 ${highlight ? "text-orange-500" : ""}`}>{value}</p></div>; }
+function Info({ label, value }: { label: string; value: string | number }) { return <div><p className="text-xs text-white/35">{label}</p><p className="mt-1 font-medium">{value}</p></div>; }

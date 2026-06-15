@@ -14,13 +14,13 @@ import {
 } from "lucide-react";
 
 const serviceTypeLabels: Record<string, string> = {
-  electricity: "كهرباء",
-  plumbing: "سباكة",
+  electricity: "كهرباء وبطارية",
+  plumbing: "زيوت وفلاتر",
   hvac: "تكييف",
-  electronics: "إلكترونيات",
-  carpentry: "نجارة",
-  painting: "دهان",
-  cleaning: "تنظيف",
+  electronics: "فحص إلكتروني",
+  carpentry: "محرك وميكانيكا",
+  painting: "هيكل ودهان",
+  cleaning: "إطارات وفرامل",
   other: "أخرى",
 };
 

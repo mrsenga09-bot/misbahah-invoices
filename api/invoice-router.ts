@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { invoices } from "@db/schema";
+import { fleetAssets, invoices } from "@db/schema";
 import { and, eq, desc, like, or, sql, type SQL } from "drizzle-orm";
 
 const amountSchema = z.string().refine((value) => {
@@ -101,6 +101,11 @@ export const invoiceRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const db = getDb();
+      await db.insert(fleetAssets).values({
+        assetNumber: input.vehicleNumber,
+        assetType: "vehicle",
+        status: "active",
+      }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
       const result = await db.insert(invoices).values({
         invoiceNumber: input.invoiceNumber,
         vehicleNumber: input.vehicleNumber,

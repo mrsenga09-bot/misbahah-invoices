@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import Vehicles from "./pages/Vehicles";
 import VehicleHistory from "./pages/VehicleHistory";
+import AddAsset from "./pages/AddAsset";
 
 export default function App() {
   return (
@@ -24,6 +25,8 @@ export default function App() {
               <Route path="/invoices/:id" element={<InvoiceDetails />} />
               <Route path="/add-invoice" element={<AddInvoice />} />
               <Route path="/vehicles" element={<Vehicles />} />
+              <Route path="/vehicles/new" element={<AddAsset />} />
+              <Route path="/vehicles/:vehicleNumber/edit" element={<AddAsset />} />
               <Route path="/vehicles/:vehicleNumber" element={<VehicleHistory />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="*" element={<NotFound />} />

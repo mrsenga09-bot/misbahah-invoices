@@ -28,6 +28,32 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const fleetAssets = mysqlTable("fleet_assets", {
+  id: serial("id").primaryKey(),
+  assetNumber: varchar("asset_number", { length: 100 }).notNull().unique(),
+  assetType: mysqlEnum("asset_type", ["vehicle", "equipment"])
+    .default("vehicle")
+    .notNull(),
+  name: varchar("name", { length: 255 }),
+  make: varchar("make", { length: 100 }),
+  model: varchar("model", { length: 100 }),
+  year: int("year"),
+  chassisNumber: varchar("chassis_number", { length: 150 }),
+  department: varchar("department", { length: 150 }),
+  status: mysqlEnum("status", ["active", "maintenance", "inactive"])
+    .default("active")
+    .notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export type FleetAsset = typeof fleetAssets.$inferSelect;
+export type InsertFleetAsset = typeof fleetAssets.$inferInsert;
+
 // Invoices table
 export const invoices = mysqlTable("invoices", {
   id: serial("id").primaryKey(),

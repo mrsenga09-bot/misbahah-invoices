@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Link } from "react-router";
 import {
   Receipt,
@@ -19,18 +19,19 @@ import {
 } from "@/lib/invoice-ocr";
 
 const serviceTypes = [
-  { value: "electricity", label: "كهرباء" },
-  { value: "plumbing", label: "سباكة" },
+  { value: "electricity", label: "كهرباء وبطارية" },
+  { value: "plumbing", label: "زيوت وفلاتر" },
   { value: "hvac", label: "تكييف" },
-  { value: "electronics", label: "إلكترونيات" },
-  { value: "carpentry", label: "نجارة" },
-  { value: "painting", label: "دهان" },
-  { value: "cleaning", label: "تنظيف" },
+  { value: "electronics", label: "فحص إلكتروني" },
+  { value: "carpentry", label: "محرك وميكانيكا" },
+  { value: "painting", label: "هيكل ودهان" },
+  { value: "cleaning", label: "إطارات وفرامل" },
   { value: "other", label: "أخرى" },
 ];
 
 export default function AddInvoice() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +43,7 @@ export default function AddInvoice() {
 
   const [formData, setFormData] = useState({
     invoiceNumber: `INV-${Date.now().toString(36).toUpperCase()}`,
-    vehicleNumber: "",
+    vehicleNumber: searchParams.get("vehicle") || "",
     odometer: "",
     maintenanceName: "",
     date: new Date().toISOString().split("T")[0],
@@ -58,11 +59,14 @@ export default function AddInvoice() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
+  const { data: fleetAssets } = trpc.fleet.list.useQuery();
   const createMutation = trpc.invoice.create.useMutation({
     onSuccess: () => {
       utils.invoice.list.invalidate();
       utils.invoice.stats.invalidate();
       utils.invoice.vehicles.invalidate();
+      utils.fleet.list.invalidate();
+      utils.fleet.dashboard.invalidate();
       navigate("/invoices");
     },
     onError: (error) => {
@@ -209,9 +213,9 @@ export default function AddInvoice() {
     <div className="animate-fade-in max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">فاتورة جديدة</h1>
+        <h1 className="text-2xl md:text-3xl font-bold">تسجيل عملية صيانة</h1>
         <p className="text-white/50 mt-1">
-          أضف فاتورة صيانة جديدة يدوياً أو عبر الماسح الضوئي
+          سجّل بيانات الصيانة والتكلفة وارفق الفاتورة يدويًا أو بالمسح الضوئي
         </p>
       </div>
 
@@ -476,6 +480,7 @@ export default function AddInvoice() {
               </label>
               <input
                 type="text"
+                list="fleet-assets"
                 value={formData.vehicleNumber}
                 onChange={(e) => updateFormField("vehicleNumber", e.target.value)}
                 placeholder="مثال: أ ب ج 1234"
@@ -483,6 +488,13 @@ export default function AddInvoice() {
                   errors.vehicleNumber ? "border-red-500" : "border-white/10"
                 }`}
               />
+              <datalist id="fleet-assets">
+                {fleetAssets?.map((asset) => (
+                  <option key={asset.id} value={asset.assetNumber}>
+                    {[asset.name, asset.make, asset.model].filter(Boolean).join(" - ")}
+                  </option>
+                ))}
+              </datalist>
               {errors.vehicleNumber && (
                 <p className="text-red-400 text-xs">{errors.vehicleNumber}</p>
               )}
@@ -640,7 +652,7 @@ export default function AddInvoice() {
               ) : (
                 <Check className="w-5 h-5" />
               )}
-              حفظ الفاتورة
+              حفظ عملية الصيانة
             </button>
             <Link
               to="/invoices"
