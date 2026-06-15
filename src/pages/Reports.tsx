@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
-import { Car, Gauge, Printer, Receipt, Search, WalletCards, X } from "lucide-react";
-import { printMaintenanceReport } from "@/lib/maintenance-export";
+import { Car, Download, Gauge, Printer, Receipt, Search, WalletCards, X } from "lucide-react";
+import { exportAssetMaintenanceExcel, printMaintenanceReport } from "@/lib/maintenance-export";
 
 export default function Reports() {
   const [vehicleSearch, setVehicleSearch] = useState("");
@@ -25,6 +25,7 @@ export default function Reports() {
           </p>
           <p className="hidden print:block text-xs text-gray-500 mt-2">تاريخ إصدار التقرير: {generatedAt}</p>
         </div>
+        <div className="no-print flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => data && printMaintenanceReport({
@@ -34,11 +35,26 @@ export default function Reports() {
             totalCost: data.totalCost,
           })}
           disabled={isLoading || !data}
-          className="no-print inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
         >
           <Printer className="w-4 h-4" />
           طباعة التقرير
         </button>
+        <button
+          type="button"
+          onClick={() => data && exportAssetMaintenanceExcel({
+            title: vehicleSearch ? `صيانة السيارة ${vehicleSearch}` : "تقرير صيانة الأسطول",
+            subtitle: vehicleSearch ? `النتائج المطابقة لرقم ${vehicleSearch}` : "جميع عمليات الصيانة المسجلة",
+            operations: data.operations,
+            totalCost: data.totalCost,
+          })}
+          disabled={isLoading || !data}
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          تحميل Excel
+        </button>
+        </div>
       </div>
 
       <div className="no-print glass-card rounded-xl p-4">

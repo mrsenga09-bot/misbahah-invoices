@@ -95,11 +95,13 @@ export async function exportAssetMaintenanceExcel(report: ReportData) {
   const XLSX = await import("xlsx");
   const asset = report.asset;
   const summary = [
-    ["تقرير صيانة الأصل", asset?.assetNumber || report.title],
-    ["الاسم", asset?.name || "-"],
-    ["الماركة والموديل", [asset?.make, asset?.model, asset?.year].filter(Boolean).join(" ") || "-"],
-    ["رقم الشاسيه", asset?.chassisNumber || "-"],
-    ["القسم / المشروع", asset?.department || "-"],
+    [asset ? "تقرير صيانة الأصل" : "تقرير صيانة الأسطول", asset?.assetNumber || report.title],
+    ...(asset ? [
+      ["الاسم", asset.name || "-"],
+      ["الماركة والموديل", [asset.make, asset.model, asset.year].filter(Boolean).join(" ") || "-"],
+      ["رقم الشاسيه", asset.chassisNumber || "-"],
+      ["القسم / المشروع", asset.department || "-"],
+    ] : []),
     ["عدد عمليات الصيانة", report.operations.length],
     ["تكلفة الشهر", report.monthlyCost || 0],
     ["تكلفة السنة", report.yearlyCost || 0],
@@ -117,6 +119,6 @@ export async function exportAssetMaintenanceExcel(report: ReportData) {
   sheet["!views"] = [{ rightToLeft: true }];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Maintenance Log");
-  const safeNumber = (asset?.assetNumber || "asset").replace(/[\\/:*?"<>|]/g, "-");
-  XLSX.writeFile(workbook, `سجل-صيانة-${safeNumber}.xlsx`);
+  const safeName = (asset?.assetNumber || report.title || "fleet-report").replace(/[\\/:*?"<>|]/g, "-");
+  XLSX.writeFile(workbook, `${asset ? "سجل-صيانة" : "تقرير-صيانة"}-${safeName}.xlsx`);
 }
