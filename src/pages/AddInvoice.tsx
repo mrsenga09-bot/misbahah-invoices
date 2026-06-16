@@ -46,6 +46,33 @@ type BatchInvoiceRow = {
   message?: string;
 };
 
+type OcrPage = {
+  dataUrl: string;
+  fileName: string;
+};
+
+type PdfJsModule = {
+  getDocument: (input: { data: ArrayBuffer }) => { promise: Promise<any> };
+  GlobalWorkerOptions: { workerSrc: string };
+};
+
+const PDFJS_URL = "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.mjs";
+const PDFJS_WORKER_URL = "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.mjs";
+let pdfJsPromise: Promise<PdfJsModule> | null = null;
+
+function isPdfFile(file: File) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+async function loadPdfJs() {
+  pdfJsPromise ??= import(/* @vite-ignore */ PDFJS_URL).then((module) => {
+    const pdfjs = module as PdfJsModule;
+    pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+    return pdfjs;
+  });
+  return pdfJsPromise;
+}
+
 export default function AddInvoice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -129,20 +156,65 @@ export default function AddInvoice() {
     [errors]
   );
 
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const renderPdfPages = async (file: File, maxPages: number): Promise<OcrPage[]> => {
+    const pdfjs = await loadPdfJs();
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pages: OcrPage[] = [];
+    const pageCount = Math.min(pdf.numPages || 0, maxPages);
+
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) continue;
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+      pages.push({
+        dataUrl: canvas.toDataURL("image/png"),
+        fileName: pdf.numPages > 1 ? `${file.name} - صفحة ${pageNumber}` : file.name,
+      });
+    }
+
+    return pages;
+  };
+
+  const fileToOcrPages = async (file: File, maxPages = 1): Promise<OcrPage[]> => {
+    if (isPdfFile(file)) return renderPdfPages(file, maxPages);
+    if (file.type.startsWith("image/")) {
+      return [{ dataUrl: await fileToDataUrl(file), fileName: file.name }];
+    }
+    return [];
+  };
+
   const handleImageUpload = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
-      setSubmitError("حجم الصورة أكبر من 10 ميجابايت. اختر صورة أصغر.");
+      setSubmitError("حجم الملف أكبر من 10 ميجابايت. اختر صورة أو PDF أصغر.");
       return;
     }
 
     setSubmitError(null);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      setPreviewImage(result);
-      setFormData((prev) => ({ ...prev, imageUrl: result }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const firstPage = (await fileToOcrPages(file, 1))[0];
+      if (!firstPage) {
+        setSubmitError("صيغة الملف غير مدعومة. استخدم صورة أو PDF.");
+        return;
+      }
+      setPreviewImage(firstPage.dataUrl);
+      setFormData((prev) => ({ ...prev, imageUrl: firstPage.dataUrl }));
+    } catch (error) {
+      console.error("File preview error:", error);
+      setSubmitError("تعذر قراءة الملف. جرب صورة أو PDF أوضح.");
+    }
   };
 
   const performOCR = async (imageSrc: string) => {
@@ -193,14 +265,6 @@ export default function AddInvoice() {
     }
   };
 
-  const fileToDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-
   const rowIsReady = (row: BatchInvoiceRow) =>
     Boolean(
       row.invoiceNumber.trim() &&
@@ -228,29 +292,65 @@ export default function AddInvoice() {
   };
 
   const handleBatchFiles = async (files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/")).slice(0, 100);
-    if (!imageFiles.length) {
-      setBatchMessage("اختر صور فواتير بصيغة PNG أو JPG.");
+    const supportedFiles = Array.from(files).filter(
+      (file) => file.type.startsWith("image/") || isPdfFile(file),
+    );
+    if (!supportedFiles.length) {
+      setBatchMessage("اختر فواتير بصيغة صورة أو PDF.");
       return;
     }
 
     setBatchRows([]);
     setBatchMessage(null);
     setIsBatchScanning(true);
-    setBatchProgress({ done: 0, total: imageFiles.length });
+    setBatchProgress({ done: 0, total: supportedFiles.length });
 
     const today = new Date().toISOString().split("T")[0];
+    const pages: OcrPage[] = [];
 
-    for (let index = 0; index < imageFiles.length; index += 1) {
-      const file = imageFiles[index];
+    for (const file of supportedFiles) {
+      if (pages.length >= 100) break;
+      try {
+        const nextPages = await fileToOcrPages(file, 100 - pages.length);
+        pages.push(...nextPages);
+      } catch (error) {
+        setBatchRows((rows) => [
+          ...rows,
+          {
+            id: `${Date.now()}-${rows.length}`,
+            fileName: file.name,
+            invoiceNumber: `BULK-${Date.now().toString(36).toUpperCase()}-${rows.length + 1}`,
+            vehicleNumber: "",
+            odometer: "",
+            maintenanceName: "عملية صيانة",
+            date: today,
+            vendorName: "غير محدد",
+            totalAmount: "",
+            description: "",
+            status: "error",
+            message: error instanceof Error ? error.message : "تعذر قراءة الملف",
+          },
+        ]);
+      }
+    }
+
+    if (!pages.length) {
+      setIsBatchScanning(false);
+      setBatchMessage("لم يتم العثور على صفحات قابلة للقراءة داخل الملفات.");
+      return;
+    }
+
+    setBatchProgress({ done: 0, total: pages.length });
+
+    for (let index = 0; index < pages.length; index += 1) {
+      const page = pages[index];
       const id = `${Date.now()}-${index}`;
       try {
-        const imageSrc = await fileToDataUrl(file);
-        const result = await Tesseract.recognize(imageSrc, "eng+ara");
+        const result = await Tesseract.recognize(page.dataUrl, "eng+ara");
         const extracted = extractInvoiceData(result.data.text);
         const row: BatchInvoiceRow = {
           id,
-          fileName: file.name,
+          fileName: page.fileName,
           invoiceNumber: extracted.invoiceNumber || `BULK-${Date.now().toString(36).toUpperCase()}-${index + 1}`,
           vehicleNumber: extracted.vehicleNumber || "",
           odometer: extracted.odometer || "",
@@ -269,7 +369,7 @@ export default function AddInvoice() {
           ...rows,
           {
             id,
-            fileName: file.name,
+            fileName: page.fileName,
             invoiceNumber: `BULK-${Date.now().toString(36).toUpperCase()}-${index + 1}`,
             vehicleNumber: "",
             odometer: "",
@@ -283,7 +383,7 @@ export default function AddInvoice() {
           },
         ]);
       } finally {
-        setBatchProgress({ done: index + 1, total: imageFiles.length });
+        setBatchProgress({ done: index + 1, total: pages.length });
       }
     }
 
@@ -317,7 +417,7 @@ export default function AddInvoice() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
+    if (file && (file.type.startsWith("image/") || isPdfFile(file))) {
       handleImageUpload(file);
     }
   };
@@ -435,11 +535,11 @@ export default function AddInvoice() {
           >
             <FileStack className="w-12 h-12 text-white/20 mx-auto mb-4" />
             <p className="text-white font-medium mb-1">اضغط لاختيار عدة فواتير</p>
-            <p className="text-white/40 text-sm">PNG, JPG, JPEG - حتى 100 فاتورة في الدفعة</p>
+            <p className="text-white/40 text-sm">PNG, JPG, JPEG, PDF - حتى 100 فاتورة أو صفحة PDF في الدفعة</p>
             <input
               ref={batchInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf,application/pdf"
               multiple
               onChange={(event) => {
                 if (event.target.files?.length) void handleBatchFiles(event.target.files);
@@ -565,11 +665,11 @@ export default function AddInvoice() {
               <p className="text-white font-medium mb-1">
                 اضغط أو اسحب صورة هنا
               </p>
-              <p className="text-white/40 text-sm">PNG, JPG, JPEG</p>
+              <p className="text-white/40 text-sm">PNG, JPG, JPEG, PDF</p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,application/pdf"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -920,12 +1020,12 @@ export default function AddInvoice() {
             >
               <Upload className="w-6 h-6 text-white/20 mx-auto mb-2" />
               <p className="text-sm text-white/40">
-                اضغط أو اسحب صورة الفاتورة هنا
+                اضغط أو اسحب صورة الفاتورة أو PDF هنا
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,application/pdf"
                 onChange={handleFileChange}
                 className="hidden"
               />
