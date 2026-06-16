@@ -11,6 +11,30 @@ const amountSchema = z.string().refine((value) => {
 
 const odometerSchema = z.number().int().min(0).max(9_999_999).optional();
 
+const invoiceInput = z.object({
+  invoiceNumber: z.string().min(1),
+  vehicleNumber: z.string().trim().min(1),
+  odometer: odometerSchema,
+  maintenanceName: z.string().trim().min(1),
+  date: z.string().transform((str) => new Date(str)),
+  vendorName: z.string().min(1),
+  serviceType: z.enum([
+    "electricity",
+    "plumbing",
+    "hvac",
+    "electronics",
+    "carpentry",
+    "painting",
+    "cleaning",
+    "other",
+  ]),
+  description: z.string().optional(),
+  totalAmount: amountSchema,
+  imageUrl: z.string().optional(),
+  notes: z.string().optional(),
+  userId: z.number(),
+});
+
 export const invoiceRouter = createRouter({
   list: publicQuery
     .input(
@@ -74,31 +98,7 @@ export const invoiceRouter = createRouter({
     }),
 
   create: publicQuery
-    .input(
-      z.object({
-        invoiceNumber: z.string().min(1),
-        vehicleNumber: z.string().trim().min(1),
-        odometer: odometerSchema,
-        maintenanceName: z.string().trim().min(1),
-        date: z.string().transform((str) => new Date(str)),
-        vendorName: z.string().min(1),
-        serviceType: z.enum([
-          "electricity",
-          "plumbing",
-          "hvac",
-          "electronics",
-          "carpentry",
-          "painting",
-          "cleaning",
-          "other",
-        ]),
-        description: z.string().optional(),
-        totalAmount: amountSchema,
-        imageUrl: z.string().optional(),
-        notes: z.string().optional(),
-        userId: z.number(),
-      })
-    )
+    .input(invoiceInput)
     .mutation(async ({ input }) => {
       const db = getDb();
       await db.insert(fleetAssets).values({
@@ -121,6 +121,41 @@ export const invoiceRouter = createRouter({
         userId: input.userId,
       });
       return { success: true, id: Number(result[0].insertId) };
+    }),
+
+  createMany: publicQuery
+    .input(z.object({ invoices: z.array(invoiceInput).min(1).max(150) }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      let created = 0;
+
+      await db.transaction(async (tx) => {
+        for (const item of input.invoices) {
+          await tx.insert(fleetAssets).values({
+            assetNumber: item.vehicleNumber,
+            assetType: "vehicle",
+            status: "active",
+          }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+
+          await tx.insert(invoices).values({
+            invoiceNumber: item.invoiceNumber,
+            vehicleNumber: item.vehicleNumber,
+            odometer: item.odometer ?? null,
+            maintenanceName: item.maintenanceName,
+            date: item.date,
+            vendorName: item.vendorName,
+            serviceType: item.serviceType,
+            description: item.description || null,
+            totalAmount: item.totalAmount,
+            imageUrl: item.imageUrl || null,
+            notes: item.notes || null,
+            userId: item.userId,
+          });
+          created += 1;
+        }
+      });
+
+      return { success: true, created };
     }),
 
   update: publicQuery

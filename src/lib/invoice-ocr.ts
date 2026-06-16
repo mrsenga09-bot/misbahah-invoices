@@ -1,5 +1,8 @@
 export interface ExtractedInvoiceData {
+  invoiceNumber?: string;
+  vehicleNumber?: string;
   vendorName?: string;
+  maintenanceName?: string;
   totalAmount?: string;
   date?: string;
   odometer?: string;
@@ -80,6 +83,25 @@ export function extractOdometer(text: string) {
   return match?.[1];
 }
 
+function extractInvoiceNumber(text: string) {
+  const normalized = normalizeDigits(text);
+  const match = normalized.match(
+    /(?:invoice\s*(?:no|number|#)?|inv\s*(?:no|#)?|Ø±Ù‚Ù…\s*Ø§Ù„ÙØ§ØªÙˆØ±Ø©|ÙØ§ØªÙˆØ±Ø©\s*Ø±Ù‚Ù…)\s*[:#ï¼š-]?\s*([A-Z0-9-]{3,30})/iu,
+  );
+  return match?.[1];
+}
+
+function extractVehicleNumber(text: string) {
+  const normalized = normalizeDigits(text);
+  const labeled = normalized.match(
+    /(?:Ø±Ù‚Ù…\s*(?:Ø§Ù„Ø³ÙŠØ§Ø±Ø©|Ø§Ù„Ù…Ø±ÙƒØ¨Ø©|Ø§Ù„Ù„ÙˆØ­Ø©)|Ù„ÙˆØ­Ø©|plate|vehicle|car)\s*[:#ï¼š-]?\s*([A-Z0-9\u0600-\u06ff -]{2,20})/iu,
+  );
+  if (labeled?.[1]) return labeled[1].trim();
+
+  const compactPlate = normalized.match(/\b([A-Z]{2,4}\s*\d{2,5})\b/i);
+  return compactPlate?.[1]?.replace(/\s+/g, "");
+}
+
 function extractDate(text: string) {
   const normalized = normalizeDigits(text);
   const match =
@@ -98,7 +120,10 @@ export function extractInvoiceData(text: string): ExtractedInvoiceData {
     .filter((line) => line.length > 2);
 
   return {
+    invoiceNumber: extractInvoiceNumber(text),
+    vehicleNumber: extractVehicleNumber(text),
     vendorName: lines[0]?.substring(0, 50),
+    maintenanceName: lines.find((line) => /Ø²ÙŠØª|Ø¨Ø·Ø§Ø±ÙŠ|Ø¥Ø·Ø§Ø±|ÙØ±Ø§Ù…Ù„|maintenance|service|oil|battery|tire/i.test(line))?.substring(0, 120),
     totalAmount: extractInvoiceAmount(text),
     date: extractDate(text),
     odometer: extractOdometer(text),

@@ -116,6 +116,44 @@ export const fleetRouter = createRouter({
     return { success: true, id: Number(result[0].insertId) };
   }),
 
+  importMany: publicQuery
+    .input(z.object({ assets: z.array(assetInput).min(1).max(1000) }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      let imported = 0;
+
+      await db.transaction(async (tx) => {
+        for (const asset of input.assets) {
+          await tx.insert(fleetAssets).values({
+            ...asset,
+            name: asset.name || null,
+            make: asset.make || null,
+            model: asset.model || null,
+            year: asset.year || null,
+            chassisNumber: asset.chassisNumber || null,
+            department: asset.department || null,
+            notes: asset.notes || null,
+          }).onDuplicateKeyUpdate({
+            set: {
+              assetType: asset.assetType,
+              name: asset.name || null,
+              make: asset.make || null,
+              model: asset.model || null,
+              year: asset.year || null,
+              chassisNumber: asset.chassisNumber || null,
+              department: asset.department || null,
+              status: asset.status,
+              notes: asset.notes || null,
+              updatedAt: new Date(),
+            },
+          });
+          imported += 1;
+        }
+      });
+
+      return { success: true, imported };
+    }),
+
   update: publicQuery
     .input(z.object({ id: z.number(), originalAssetNumber: z.string().min(1), data: assetInput }))
     .mutation(async ({ input }) => {
