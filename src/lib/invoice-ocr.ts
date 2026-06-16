@@ -82,6 +82,16 @@ export function extractInvoiceAmount(text: string) {
     if (!netLabel.test(line)) continue;
     const amount = extractAmountFromLine(line);
     if (amount) return amount;
+    const index = lines.indexOf(line);
+    const nextAmounts = lines
+      .slice(index + 1, index + 4)
+      .flatMap((nextLine) =>
+        [...nextLine.matchAll(/(\d[\d,\s]*(?:\.\d{1,2})?)/g)]
+          .map((match) => match[1] ? parseAmount(match[1]) : undefined)
+          .filter((nextAmount): nextAmount is string => Boolean(nextAmount)),
+      );
+    const lastNextAmount = nextAmounts.at(-1);
+    if (lastNextAmount) return lastNextAmount;
   }
 
   for (const line of lines) {
@@ -122,6 +132,10 @@ export function extractOdometer(text: string) {
       ? digits
       : undefined;
   };
+
+  const beforeLabel = normalized.match(/(\d{3,7})\s*(?:رقم\s*)?(?:عداد|العداد)/iu);
+  const beforeLabelOdometer = cleanOdometer(beforeLabel?.[1]);
+  if (beforeLabelOdometer) return beforeLabelOdometer;
 
   for (let index = 0; index < lines.length; index += 1) {
     if (!odometerLabel.test(lines[index])) continue;
@@ -182,6 +196,18 @@ function extractVehicleNumber(text: string) {
   const lines = normalizedLines(text);
   const plateLabel =
     /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|بيانات\s*اللوحة|plate\s*(?:no|number|id)?|license\s*plate|vehicle\s*(?:no|number|id)?|car\s*(?:no|number)?|registration\s*(?:no|number)?|reg\s*no)/iu;
+
+  for (const line of lines) {
+    const plateBeforeArabicLabel =
+      line.match(/([A-Z]{1,4}\s*-?\s*\d{1,5})\s*(?:رقم\s*)?(?:اللوحة|لوحة)/iu) ??
+      line.match(/(\d{1,5}\s*-?\s*[A-Z]{1,4})\s*(?:رقم\s*)?(?:اللوحة|لوحة)/iu) ??
+      line.match(/([\u0621-\u064a](?:\s*[\u0621-\u064a]){0,3}\s*\d{1,5})\s*(?:رقم\s*)?(?:اللوحة|لوحة)/u) ??
+      line.match(/(\d{1,5}\s*[\u0621-\u064a](?:\s*[\u0621-\u064a]){0,3})\s*(?:رقم\s*)?(?:اللوحة|لوحة)/u);
+    if (plateBeforeArabicLabel?.[1]) {
+      const plate = normalizePlateCandidate(plateBeforeArabicLabel[1]);
+      if (plate) return plate;
+    }
+  }
 
   for (let index = 0; index < lines.length; index += 1) {
     if (!plateLabel.test(lines[index])) continue;

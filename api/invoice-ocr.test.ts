@@ -45,4 +45,29 @@ describe("invoice OCR extraction", () => {
   it("extracts an Arabic plate number", () => {
     expect(extractInvoiceData("لوحة السيارة: أ ب ج ١٢٣٤\nالصافي 230.00").vehicleNumber).toBe("أ ب ج 1234");
   });
+
+  it("extracts plate and odometer when values appear before Arabic labels", () => {
+    const text = "112491رقم العداد\nر ع ل9399رقم اللوحة\nالصافي بعد الخصم225.00";
+    const data = extractInvoiceData(text);
+    expect(data.odometer).toBe("112491");
+    expect(data.vehicleNumber).toBe("ر ع ل9399");
+  });
+
+  it("extracts fields from invoice 214 text layout", () => {
+    const text = [
+      "الاجمالي",
+      "الخصم",
+      "الصافي مئتين و ثمانية و خمسون ريال و خمسة و سبعون هللة فقط",
+      "225.00",
+      "0.00",
+      "258.75",
+      "الصافي بعد الخصم225.00",
+      "112491رقم العداد",
+      "ر ع ل9399رقم اللوحة",
+    ].join("\n");
+    const data = extractInvoiceData(text);
+    expect(data.totalAmount).toBe("258.75");
+    expect(data.odometer).toBe("112491");
+    expect(data.vehicleNumber).toBe("ر ع ل9399");
+  });
 });
