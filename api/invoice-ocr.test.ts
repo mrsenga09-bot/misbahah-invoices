@@ -14,6 +14,10 @@ describe("invoice OCR extraction", () => {
     expect(extractInvoiceAmount("الإجمالي: ١٢٥٫٥٠ ريال سعودي")).toBe("125.50");
   });
 
+  it("treats net amount as the invoice total", () => {
+    expect(extractInvoiceAmount("المجموع 200.00\nضريبة القيمة المضافة 30.00\nالصافي 230.00 ر.س")).toBe("230.00");
+  });
+
   it("extracts an English labelled amount", () => {
     expect(extractInvoiceAmount("Grand Total: 2,450.75 SAR")).toBe("2450.75");
   });
@@ -25,6 +29,14 @@ describe("invoice OCR extraction", () => {
   });
 
   it("extracts an odometer reading", () => {
-    expect(extractOdometer("عداد السيارة: ١٢٥٤٠٠ كم")).toBe("125400");
+    expect(extractOdometer("عداد السيارة: ١٢٥٬٤٠٠ كم")).toBe("125400");
+  });
+
+  it("extracts a labelled plate number", () => {
+    expect(extractInvoiceData("رقم اللوحة: GGG44\nالصافي 230.00").vehicleNumber).toBe("GGG44");
+  });
+
+  it("extracts an Arabic plate number", () => {
+    expect(extractInvoiceData("لوحة السيارة: أ ب ج ١٢٣٤\nالصافي 230.00").vehicleNumber).toBe("أ ب ج 1234");
   });
 });
