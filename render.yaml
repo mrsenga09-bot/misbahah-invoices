@@ -25,3 +25,5 @@ services:
         value: https://auth.kimi.com
       - key: VITE_APP_ID
         value: 19eb5b5d-c932-89a6-8000-0000a4fd53f8
+      - key: GEMINI_API_KEY
+        sync: false

@@ -143,6 +143,7 @@ export default function AddInvoice() {
       setBatchMessage(`تعذر حفظ الفواتير: ${error.message}`);
     },
   });
+  const aiExtractMutation = trpc.ai.extractInvoice.useMutation();
 
   const updateFormField = useCallback(
     (field: string, value: string) => {
@@ -204,6 +205,29 @@ export default function AddInvoice() {
     return [];
   };
 
+  const extractWithAiOrOcr = async (page: OcrPage, onProgress?: (progress: number) => void) => {
+    try {
+      const aiData = await aiExtractMutation.mutateAsync({
+        text: page.text,
+        imageDataUrl: page.text ? undefined : page.dataUrl,
+        fileName: page.fileName,
+      });
+      onProgress?.(100);
+      return aiData;
+    } catch (error) {
+      console.warn("AI invoice extraction failed, falling back to OCR:", error);
+      const text = page.text || (await Tesseract.recognize(page.dataUrl, "eng+ara", {
+        logger: (m) => {
+          if (m.status === "recognizing text") {
+            onProgress?.(Math.round(m.progress * 100));
+          }
+        },
+      })).data.text;
+      onProgress?.(100);
+      return extractInvoiceData(text);
+    }
+  };
+
   const handleImageUpload = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
       setSubmitError("حجم الملف أكبر من 10 ميجابايت. اختر صورة أو PDF أصغر.");
@@ -231,15 +255,10 @@ export default function AddInvoice() {
     setScanProgress(0);
 
     try {
-      const text = existingText || (await Tesseract.recognize(imageSrc, "eng+ara", {
-        logger: (m) => {
-          if (m.status === "recognizing text") {
-            setScanProgress(Math.round(m.progress * 100));
-          }
-        },
-      })).data.text;
-      if (existingText) setScanProgress(100);
-      const extracted = extractInvoiceData(text);
+      const extracted = await extractWithAiOrOcr(
+        { dataUrl: imageSrc, fileName: "invoice", text: existingText || undefined },
+        setScanProgress,
+      );
       setExtractedData(extracted);
 
       // Auto-fill form with extracted data
@@ -354,8 +373,7 @@ export default function AddInvoice() {
       const page = pages[index];
       const id = `${Date.now()}-${index}`;
       try {
-        const text = page.text || (await Tesseract.recognize(page.dataUrl, "eng+ara")).data.text;
-        const extracted = extractInvoiceData(text);
+        const extracted = await extractWithAiOrOcr(page);
         const row: BatchInvoiceRow = {
           id,
           fileName: page.fileName,
