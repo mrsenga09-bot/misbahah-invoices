@@ -3,6 +3,7 @@ import {
   extractInvoiceAmount,
   extractInvoiceData,
   extractOdometer,
+  reconcileVehicleNumber,
 } from "../src/lib/invoice-ocr";
 
 describe("invoice OCR extraction", () => {
@@ -45,6 +46,10 @@ describe("invoice OCR extraction", () => {
   it("does not treat Car Services as a vehicle number", () => {
     const data = extractInvoiceData("Raqi Center Tires\nCar Services\nIndusterial Jubail - Bergis Station\nNet Total 230.00");
     expect(data.vehicleNumber).toBeUndefined();
+  });
+
+  it("replaces an invalid AI vehicle value with the plate from invoice text", () => {
+    expect(reconcileVehicleNumber("Services Industerial Jub", "Car Services\nر ع ل9399رقم اللوحة")).toBe("ر ع ل9399");
   });
 
   it("extracts an Arabic plate number", () => {

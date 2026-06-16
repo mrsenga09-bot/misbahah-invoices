@@ -17,6 +17,7 @@ import {
 import Tesseract from "tesseract.js";
 import {
   extractInvoiceData,
+  reconcileVehicleNumber,
   type ExtractedInvoiceData,
 } from "@/lib/invoice-ocr";
 
@@ -213,7 +214,10 @@ export default function AddInvoice() {
         fileName: page.fileName,
       });
       onProgress?.(100);
-      return aiData;
+      return {
+        ...aiData,
+        vehicleNumber: reconcileVehicleNumber(aiData.vehicleNumber, page.text),
+      };
     } catch (error) {
       console.warn("AI invoice extraction failed, falling back to OCR:", error);
       const text = page.text || (await Tesseract.recognize(page.dataUrl, "eng+ara", {

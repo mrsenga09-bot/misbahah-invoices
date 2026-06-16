@@ -191,6 +191,16 @@ function normalizePlateCandidate(value: string) {
   return undefined;
 }
 
+export function validateVehicleNumber(value?: string) {
+  if (!value) return undefined;
+  return normalizePlateCandidate(value);
+}
+
+export function reconcileVehicleNumber(candidate: string | undefined, sourceText: string | undefined) {
+  const extracted = sourceText ? extractVehicleNumber(sourceText) : undefined;
+  return extracted || validateVehicleNumber(candidate);
+}
+
 function extractVehicleNumber(text: string) {
   const normalized = normalizeText(text);
   const lines = normalizedLines(text);
