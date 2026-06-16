@@ -195,7 +195,7 @@ function extractVehicleNumber(text: string) {
   const normalized = normalizeText(text);
   const lines = normalizedLines(text);
   const plateLabel =
-    /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|بيانات\s*اللوحة|plate\s*(?:no|number|id)?|license\s*plate|vehicle\s*(?:no|number|id)?|car\s*(?:no|number)?|registration\s*(?:no|number)?|reg\s*no)/iu;
+    /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|بيانات\s*اللوحة|plate\s*(?:no|number|id)?|license\s*plate|vehicle\s*(?:no|number|id)?|car\s*(?:no|number|id)|registration\s*(?:no|number)?|reg\s*no)/iu;
 
   for (const line of lines) {
     const plateBeforeArabicLabel =
@@ -226,9 +226,9 @@ function extractVehicleNumber(text: string) {
   }
 
   const labeled = normalized.match(
-    /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|رقم\s*الأصل|plate\s*(?:no|number)?|vehicle\s*(?:no|number)?|car\s*(?:no|number)?)\s*[:#-]?\s*([A-Z0-9\u0600-\u06ff -]{2,24})/iu,
+    /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|رقم\s*الأصل|plate\s*(?:no|number)?|vehicle\s*(?:no|number)?|car\s*(?:no|number|id))\s*[:#-]?\s*([A-Z0-9\u0600-\u06ff -]{2,24})/iu,
   );
-  if (labeled?.[1]) return normalizePlateCandidate(labeled[1]) ?? cleanPlateValue(labeled[1]);
+  if (labeled?.[1]) return normalizePlateCandidate(labeled[1]);
 
   const englishPlate = normalized.match(/\b([A-Z]{2,4}\s*\d{2,5})\b/i);
   if (englishPlate?.[1]) return englishPlate[1].replace(/\s+/g, "").toUpperCase();

@@ -42,6 +42,11 @@ describe("invoice OCR extraction", () => {
     expect(extractInvoiceData("Plate No\nGGG44\nNet Total 230.00").vehicleNumber).toBe("GGG44");
   });
 
+  it("does not treat Car Services as a vehicle number", () => {
+    const data = extractInvoiceData("Raqi Center Tires\nCar Services\nIndusterial Jubail - Bergis Station\nNet Total 230.00");
+    expect(data.vehicleNumber).toBeUndefined();
+  });
+
   it("extracts an Arabic plate number", () => {
     expect(extractInvoiceData("لوحة السيارة: أ ب ج ١٢٣٤\nالصافي 230.00").vehicleNumber).toBe("أ ب ج 1234");
   });
