@@ -49,6 +49,7 @@ type BatchInvoiceRow = {
 type OcrPage = {
   dataUrl: string;
   fileName: string;
+  text?: string;
 };
 
 type PdfJsModule = {
@@ -86,6 +87,7 @@ export default function AddInvoice() {
   const [scanProgress, setScanProgress] = useState(0);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewOcrText, setPreviewOcrText] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
   const [batchRows, setBatchRows] = useState<BatchInvoiceRow[]>([]);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
@@ -179,9 +181,15 @@ export default function AddInvoice() {
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       await page.render({ canvasContext: context, viewport }).promise;
+      const textContent = await page.getTextContent().catch(() => null);
+      const text = textContent?.items
+        ?.map((item: { str?: string }) => item.str || "")
+        .join("\n")
+        .trim();
       pages.push({
         dataUrl: canvas.toDataURL("image/png"),
         fileName: pdf.numPages > 1 ? `${file.name} - صفحة ${pageNumber}` : file.name,
+        text: text || undefined,
       });
     }
 
@@ -210,6 +218,7 @@ export default function AddInvoice() {
         return;
       }
       setPreviewImage(firstPage.dataUrl);
+      setPreviewOcrText(firstPage.text || null);
       setFormData((prev) => ({ ...prev, imageUrl: firstPage.dataUrl }));
     } catch (error) {
       console.error("File preview error:", error);
@@ -217,20 +226,19 @@ export default function AddInvoice() {
     }
   };
 
-  const performOCR = async (imageSrc: string) => {
+  const performOCR = async (imageSrc: string, existingText?: string | null) => {
     setIsScanning(true);
     setScanProgress(0);
 
     try {
-      const result = await Tesseract.recognize(imageSrc, "eng+ara", {
+      const text = existingText || (await Tesseract.recognize(imageSrc, "eng+ara", {
         logger: (m) => {
           if (m.status === "recognizing text") {
             setScanProgress(Math.round(m.progress * 100));
           }
         },
-      });
-
-      const text = result.data.text;
+      })).data.text;
+      if (existingText) setScanProgress(100);
       const extracted = extractInvoiceData(text);
       setExtractedData(extracted);
 
@@ -346,8 +354,8 @@ export default function AddInvoice() {
       const page = pages[index];
       const id = `${Date.now()}-${index}`;
       try {
-        const result = await Tesseract.recognize(page.dataUrl, "eng+ara");
-        const extracted = extractInvoiceData(result.data.text);
+        const text = page.text || (await Tesseract.recognize(page.dataUrl, "eng+ara")).data.text;
+        const extracted = extractInvoiceData(text);
         const row: BatchInvoiceRow = {
           id,
           fileName: page.fileName,
@@ -684,6 +692,7 @@ export default function AddInvoice() {
               <button
                 onClick={() => {
                   setPreviewImage(null);
+                  setPreviewOcrText(null);
                   setExtractedData(null);
                 }}
                 className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-lg"
@@ -715,7 +724,7 @@ export default function AddInvoice() {
           {/* Scan Button */}
           {previewImage && !isScanning && (
             <button
-              onClick={() => performOCR(previewImage)}
+              onClick={() => performOCR(previewImage, previewOcrText)}
               className="w-full flex items-center justify-center gap-2 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors"
             >
               <ScanLine className="w-5 h-5" />
@@ -802,6 +811,7 @@ export default function AddInvoice() {
                 type="button"
                 onClick={() => {
                   setPreviewImage(null);
+                  setPreviewOcrText(null);
                   setFormData((p) => ({ ...p, imageUrl: "" }));
                 }}
                 className="absolute top-2 right-2 p-1 bg-red-500/80 hover:bg-red-500 text-white rounded"
