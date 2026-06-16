@@ -23,17 +23,23 @@ describe("invoice OCR extraction", () => {
   });
 
   it("extracts a normalized Arabic date", () => {
-    expect(extractInvoiceData("متجر الصيانة\nالتاريخ ١١/٠٦/٢٠٢٦").date).toBe(
-      "2026-06-11",
-    );
+    expect(extractInvoiceData("متجر الصيانة\nالتاريخ ١١/٠٦/٢٠٢٦").date).toBe("2026-06-11");
   });
 
   it("extracts an odometer reading", () => {
     expect(extractOdometer("عداد السيارة: ١٢٥٬٤٠٠ كم")).toBe("125400");
   });
 
+  it("extracts an odometer reading from the next line", () => {
+    expect(extractOdometer("Current KM\n15,000\nPlate No GGG44")).toBe("15000");
+  });
+
   it("extracts a labelled plate number", () => {
     expect(extractInvoiceData("رقم اللوحة: GGG44\nالصافي 230.00").vehicleNumber).toBe("GGG44");
+  });
+
+  it("extracts a plate number from the next line", () => {
+    expect(extractInvoiceData("Plate No\nGGG44\nNet Total 230.00").vehicleNumber).toBe("GGG44");
   });
 
   it("extracts an Arabic plate number", () => {

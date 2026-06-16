@@ -49,17 +49,18 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function normalizedLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => normalizeText(line))
+    .filter(Boolean);
+}
+
 function parseAmount(value: string) {
-  const normalized = normalizeDigits(value)
-    .replace(/\s/g, "")
-    .replace(/,/g, "");
+  const normalized = normalizeDigits(value).replace(/\s/g, "").replace(/,/g, "");
   if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return undefined;
-
   const amount = Number(normalized);
-  if (!Number.isFinite(amount) || amount <= 0 || amount > 99_999_999.99) {
-    return undefined;
-  }
-
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 99_999_999.99) return undefined;
   return normalized;
 }
 
@@ -72,10 +73,16 @@ function extractAmountFromLine(line: string) {
 
 export function extractInvoiceAmount(text: string) {
   const normalized = normalizeText(text);
-  const lines = normalized.split(/\r?\n| {2,}/).map((line) => line.trim()).filter(Boolean);
-
+  const lines = normalizedLines(text);
+  const netLabel = /(?:الصافي|صافى|صافي|المبلغ\s*الصافي|صافي\s*المبلغ|الاجمالي\s*الصافي|الإجمالي\s*الصافي|net\s*total|net\s*amount)/iu;
   const totalLabel =
     /(?:الصافي|صافى|صافي|المبلغ\s*الصافي|صافي\s*المبلغ|الاجمالي\s*الصافي|الإجمالي\s*الصافي|الاجمالي\s*شامل\s*الضريبة|الإجمالي\s*شامل\s*الضريبة|الإجمالي\s*المستحق|الاجمالي\s*المستحق|الإجمالي|الاجمالي|المجموع|المبلغ|grand\s*total|net\s*total|net\s*amount|total\s*amount|total|amount)/iu;
+
+  for (const line of lines) {
+    if (!netLabel.test(line)) continue;
+    const amount = extractAmountFromLine(line);
+    if (amount) return amount;
+  }
 
   for (const line of lines) {
     if (!totalLabel.test(line)) continue;
@@ -95,8 +102,6 @@ export function extractInvoiceAmount(text: string) {
     if (amounts.length) return amounts.at(-1);
   }
 
-  // Decimal values are safer than integers, which are often phone numbers,
-  // invoice numbers, dates, or VAT registration numbers.
   const decimals = [...normalized.matchAll(/\b(\d{1,8}\.\d{1,2})\b/g)]
     .map((match) => match[1] ? parseAmount(match[1]) : undefined)
     .filter((amount): amount is string => Boolean(amount));
@@ -105,19 +110,38 @@ export function extractInvoiceAmount(text: string) {
 
 export function extractOdometer(text: string) {
   const normalized = normalizeText(text);
+  const lines = normalizedLines(text);
+  const odometerLabel =
+    /(?:عداد|العداد|قراءة\s*العداد|الممشى|ممشى|الكيلومترات|كيلو\s*متر|odometer|mileage|km\s*reading|current\s*km|kilometers?)/iu;
+
+  const cleanOdometer = (value?: string) => {
+    const digits = value?.replace(/[,\s]/g, "");
+    if (!digits) return undefined;
+    const odometer = Number(digits);
+    return Number.isInteger(odometer) && odometer >= 0 && odometer <= 9_999_999
+      ? digits
+      : undefined;
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!odometerLabel.test(lines[index])) continue;
+    const context = [lines[index], lines[index + 1], lines[index + 2]].filter(Boolean).join(" ");
+    const labelled =
+      context.match(/(?:عداد|العداد|قراءة\s*العداد|الممشى|ممشى|odometer|mileage|km\s*reading|current\s*km)\D{0,30}(\d[\d,\s]{2,10})/iu)?.[1] ??
+      context.match(/\b(\d[\d,\s]{2,10})\s*(?:كم|كيلو\s*متر|km)\b/iu)?.[1] ??
+      context.match(/\b(\d{3,7})\b/)?.[1];
+    const odometer = cleanOdometer(labelled);
+    if (odometer) return odometer;
+  }
+
   const patterns = [
     /(?:عداد\s*(?:السيارة|المركبة)?|قراءة\s*العداد|العداد|الممشى|ممشى|الكيلومترات|كيلو\s*متر|odometer|mileage|km)\s*[:#-]?\s*(\d[\d,\s]{1,10})/iu,
     /(\d[\d,\s]{2,10})\s*(?:كم|كيلو\s*متر|km)\b/iu,
   ];
 
   for (const pattern of patterns) {
-    const match = normalized.match(pattern);
-    const value = match?.[1]?.replace(/[,\s]/g, "");
-    if (!value) continue;
-    const odometer = Number(value);
-    if (Number.isInteger(odometer) && odometer >= 0 && odometer <= 9_999_999) {
-      return value;
-    }
+    const odometer = cleanOdometer(normalized.match(pattern)?.[1]);
+    if (odometer) return odometer;
   }
 
   return undefined;
@@ -140,15 +164,48 @@ function cleanPlateValue(value: string) {
   return cleaned || undefined;
 }
 
+function normalizePlateCandidate(value: string) {
+  const cleaned = cleanPlateValue(value);
+  if (!cleaned) return undefined;
+  const compact = cleaned.replace(/\s+/g, "");
+  if (/^[A-Z]{1,4}\d{1,5}$/i.test(compact)) return compact.toUpperCase();
+  if (/^\d{1,5}[A-Z]{1,4}$/i.test(compact)) return compact.toUpperCase();
+
+  const arabicThenDigits = /^([\u0621-\u064a](?:\s*[\u0621-\u064a]){0,3})\s*(\d{1,5})$/u;
+  const digitsThenArabic = /^(\d{1,5})\s*([\u0621-\u064a](?:\s*[\u0621-\u064a]){0,3})$/u;
+  if (arabicThenDigits.test(cleaned) || digitsThenArabic.test(cleaned)) return cleaned;
+  return undefined;
+}
+
 function extractVehicleNumber(text: string) {
   const normalized = normalizeText(text);
+  const lines = normalizedLines(text);
+  const plateLabel =
+    /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|بيانات\s*اللوحة|plate\s*(?:no|number|id)?|license\s*plate|vehicle\s*(?:no|number|id)?|car\s*(?:no|number)?|registration\s*(?:no|number)?|reg\s*no)/iu;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!plateLabel.test(lines[index])) continue;
+    const context = [lines[index], lines[index + 1], lines[index + 2]].filter(Boolean).join(" ");
+    const candidates = [
+      ...context.matchAll(/\b([A-Z]{1,4}\s*-?\s*\d{1,5})\b/giu),
+      ...context.matchAll(/\b(\d{1,5}\s*-?\s*[A-Z]{1,4})\b/giu),
+      ...context.matchAll(/([\u0621-\u064a](?:\s*[\u0621-\u064a]){0,3}\s*\d{1,5})/gu),
+      ...context.matchAll(/(\d{1,5}\s*[\u0621-\u064a](?:\s*[\u0621-\u064a]){0,3})/gu),
+    ];
+
+    for (const candidate of candidates) {
+      const plate = normalizePlateCandidate(candidate[1] ?? "");
+      if (plate) return plate;
+    }
+  }
+
   const labeled = normalized.match(
     /(?:رقم\s*(?:السيارة|المركبة|اللوحة)|لوحة\s*(?:السيارة|المركبة)?|رقم\s*الأصل|plate\s*(?:no|number)?|vehicle\s*(?:no|number)?|car\s*(?:no|number)?)\s*[:#-]?\s*([A-Z0-9\u0600-\u06ff -]{2,24})/iu,
   );
-  if (labeled?.[1]) return cleanPlateValue(labeled[1]);
+  if (labeled?.[1]) return normalizePlateCandidate(labeled[1]) ?? cleanPlateValue(labeled[1]);
 
   const englishPlate = normalized.match(/\b([A-Z]{2,4}\s*\d{2,5})\b/i);
-  if (englishPlate?.[1]) return englishPlate[1].replace(/\s+/g, "");
+  if (englishPlate?.[1]) return englishPlate[1].replace(/\s+/g, "").toUpperCase();
 
   const arabicLettersThenDigits = normalized.match(/([\u0621-\u064a]\s*[\u0621-\u064a]?\s*[\u0621-\u064a]?)\s*(\d{2,5})/u);
   if (arabicLettersThenDigits?.[0]) return cleanPlateValue(arabicLettersThenDigits[0]);
@@ -171,10 +228,7 @@ function extractDate(text: string) {
 }
 
 export function extractInvoiceData(text: string): ExtractedInvoiceData {
-  const lines = text
-    .split("\n")
-    .map((line) => normalizeText(line))
-    .filter((line) => line.length > 2);
+  const lines = normalizedLines(text).filter((line) => line.length > 2);
 
   return {
     invoiceNumber: extractInvoiceNumber(text),
