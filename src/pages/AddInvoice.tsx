@@ -17,7 +17,7 @@ import {
 import Tesseract from "tesseract.js";
 import {
   extractInvoiceData,
-  reconcileVehicleNumber,
+  validateVehicleNumber,
   type ExtractedInvoiceData,
 } from "@/lib/invoice-ocr";
 
@@ -73,6 +73,23 @@ async function loadPdfJs() {
     return pdfjs;
   });
   return pdfJsPromise;
+}
+
+function cleanAiNumber(value?: string) {
+  if (!value) return undefined;
+  const normalized = value
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/\u066b/g, ".")
+    .replace(/\u066c/g, ",")
+    .replace(/[^\d.,]/g, "")
+    .replace(/,/g, "");
+  return normalized && Number.isFinite(Number(normalized)) ? normalized : undefined;
+}
+
+function cleanAiOdometer(value?: string) {
+  const number = cleanAiNumber(value)?.replace(/\.\d+$/, "");
+  return number && Number.isInteger(Number(number)) ? number : undefined;
 }
 
 export default function AddInvoice() {
@@ -207,22 +224,19 @@ export default function AddInvoice() {
   };
 
   const extractWithAiOrOcr = async (page: OcrPage, onProgress?: (progress: number) => void) => {
-    const localData = page.text ? extractInvoiceData(page.text) : null;
     try {
       const aiData = await aiExtractMutation.mutateAsync({
         text: page.text,
-        imageDataUrl: page.text ? undefined : page.dataUrl,
+        imageDataUrl: page.dataUrl,
         fileName: page.fileName,
       });
       onProgress?.(100);
+      const vehicleNumber = validateVehicleNumber(aiData.vehicleNumber);
       return {
         ...aiData,
-        invoiceNumber: localData?.invoiceNumber || aiData.invoiceNumber,
-        vehicleNumber: reconcileVehicleNumber(aiData.vehicleNumber, page.text),
-        odometer: localData?.odometer || aiData.odometer,
-        date: localData?.date || aiData.date,
-        totalAmount: localData?.totalAmount || aiData.totalAmount,
-        description: localData?.description || aiData.description,
+        vehicleNumber,
+        odometer: cleanAiOdometer(aiData.odometer),
+        totalAmount: cleanAiNumber(aiData.totalAmount),
       };
     } catch (error) {
       console.warn("AI invoice extraction failed, falling back to OCR:", error);

@@ -3,15 +3,20 @@ import { createRouter, publicQuery } from "./middleware";
 
 const geminiModel = "gemini-2.0-flash";
 
+const optionalAiString = z.preprocess((value) => {
+  if (value === null || value === undefined) return undefined;
+  return String(value).trim();
+}, z.string().optional());
+
 const invoiceExtractionSchema = z.object({
-  invoiceNumber: z.string().optional(),
-  vehicleNumber: z.string().optional(),
-  odometer: z.string().optional(),
-  maintenanceName: z.string().optional(),
-  date: z.string().optional(),
-  vendorName: z.string().optional(),
-  totalAmount: z.string().optional(),
-  description: z.string().optional(),
+  invoiceNumber: optionalAiString,
+  vehicleNumber: optionalAiString,
+  odometer: optionalAiString,
+  maintenanceName: optionalAiString,
+  date: optionalAiString,
+  vendorName: optionalAiString,
+  totalAmount: optionalAiString,
+  description: optionalAiString,
 });
 
 function getMimeAndData(dataUrl: string) {
@@ -40,6 +45,27 @@ export const aiRouter = createRouter({
         throw new Error("AI invoice reader is not configured.");
       }
 
+      const aiPrompt = [
+        "You are an expert at visually reading Saudi vehicle maintenance invoices from the attached image/PDF page.",
+        "Return JSON only, without markdown.",
+        "Extract these fields:",
+        "invoiceNumber, vehicleNumber, odometer, maintenanceName, date, vendorName, totalAmount, description.",
+        "Rules:",
+        "- Read the attached invoice image first. Use extracted text only as supporting context.",
+        "- vehicleNumber is the actual license plate/vehicle plate near labels like رقم اللوحة, لوحة, plate, vehicle no.",
+        "- Never use company names, addresses, service descriptions, invoice titles, city names, or branch names as vehicleNumber.",
+        "- Reject values like Car Services, Services, Raqi Center Tires, Industerial Jubail, Industrial Jubail as vehicleNumber.",
+        "- For Arabic plate numbers, keep Arabic letters and digits exactly, for example: ر ع ل 9399.",
+        "- odometer is the vehicle meter reading near labels like رقم العداد, عداد, odometer, mileage, km. Do not use phone, VAT, invoice, CR, or tax numbers.",
+        "- totalAmount is the payable net/grand total. Arabic labels الصافي, الصافي بعد الخصم, الإجمالي, الاجمالي, المبلغ المستحق mean total.",
+        "- If a table has subtotal, VAT, and net/payable total, choose the final net/payable total.",
+        "- date must be YYYY-MM-DD when possible.",
+        "- maintenanceName should briefly describe the maintenance operation, such as تغيير زيت, إطارات, بطارية, فرامل.",
+        "- If you are not sure about a field, return an empty string for that field.",
+        `File name: ${input.fileName || "invoice"}`,
+        input.text ? `Supporting extracted text:\n${input.text}` : "No supporting text is available.",
+      ].join("\n");
+
       const parts: any[] = [{
         text: [
           "You are an expert at extracting Saudi vehicle maintenance invoice data.",
@@ -58,8 +84,9 @@ export const aiRouter = createRouter({
           input.text ? `Invoice text:\n${input.text}` : "Read the invoice image/PDF page.",
         ].join("\n"),
       }];
+      parts[0] = { text: aiPrompt };
 
-      if (input.imageDataUrl && !input.text) {
+      if (input.imageDataUrl) {
         const image = getMimeAndData(input.imageDataUrl);
         if (image) {
           parts.push({
