@@ -92,6 +92,11 @@ function cleanAiOdometer(value?: string) {
   return number && Number.isInteger(Number(number)) ? number : undefined;
 }
 
+function isAiServiceLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /429|quota|billing|not configured|api key|AI invoice reader/i.test(message);
+}
+
 export default function AddInvoice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -239,6 +244,7 @@ export default function AddInvoice() {
         totalAmount: cleanAiNumber(aiData.totalAmount),
       };
     } catch (error) {
+      if (isAiServiceLimitError(error)) throw error;
       console.warn("AI invoice extraction failed, falling back to OCR:", error);
       const text = page.text || (await Tesseract.recognize(page.dataUrl, "eng+ara", {
         logger: (m) => {
@@ -326,7 +332,11 @@ export default function AddInvoice() {
       setActiveTab("manual");
     } catch (error) {
       console.error("OCR Error:", error);
-      setSubmitError("تعذر على الذكاء الاصطناعي قراءة الفاتورة. جرّب صورة أو PDF أوضح.");
+      setSubmitError(
+        isAiServiceLimitError(error)
+          ? "تعذر تشغيل قارئ الذكاء الاصطناعي لأن حصة Gemini المجانية انتهت أو تحتاج تفعيل/تغيير المفتاح. لن يتم إدخال قيم تلقائية حتى لا تُسجل بيانات خاطئة."
+          : "تعذر على الذكاء الاصطناعي قراءة الفاتورة. جرّب صورة أو PDF أوضح.",
+      );
     } finally {
       setIsScanning(false);
     }

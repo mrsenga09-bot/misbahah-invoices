@@ -115,6 +115,9 @@ export const aiRouter = createRouter({
 
       if (!response.ok) {
         const message = await response.text().catch(() => "");
+        if (response.status === 429) {
+          throw new Error("AI_QUOTA_EXCEEDED: Gemini free quota is exhausted or billing is required.");
+        }
         throw new Error(`AI invoice reader failed: ${response.status} ${message.slice(0, 200)}`);
       }
 
