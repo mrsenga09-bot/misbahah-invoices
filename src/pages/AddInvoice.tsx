@@ -252,6 +252,25 @@ export default function AddInvoice() {
     }
   };
 
+  const applyExtractedInvoiceData = (extracted: ExtractedInvoiceData) => {
+    setExtractedData(extracted);
+
+    if (extracted.invoiceNumber) updateFormField("invoiceNumber", extracted.invoiceNumber);
+    if (extracted.vehicleNumber) updateFormField("vehicleNumber", extracted.vehicleNumber);
+    if (extracted.vendorName) updateFormField("vendorName", extracted.vendorName);
+    if (extracted.maintenanceName) updateFormField("maintenanceName", extracted.maintenanceName);
+    updateFormField("totalAmount", extracted.totalAmount ?? "");
+    if (extracted.date) updateFormField("date", extracted.date);
+    if (extracted.odometer) updateFormField("odometer", extracted.odometer);
+    if (extracted.description) updateFormField("description", extracted.description);
+
+    if (!extracted.vehicleNumber || !extracted.totalAmount) {
+      setSubmitError(
+        "قرأ الذكاء الاصطناعي الفاتورة، لكن بعض البيانات غير واضحة. راجع رقم السيارة والمبلغ قبل الحفظ.",
+      );
+    }
+  };
+
   const handleImageUpload = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
       setSubmitError("حجم الملف أكبر من 10 ميجابايت. اختر صورة أو PDF أصغر.");
@@ -268,21 +287,24 @@ export default function AddInvoice() {
       setPreviewImage(firstPage.dataUrl);
       setPreviewOcrText(firstPage.text || null);
       setFormData((prev) => ({ ...prev, imageUrl: firstPage.dataUrl }));
+      await performOCR(firstPage.dataUrl, firstPage.text || null, firstPage.fileName);
     } catch (error) {
       console.error("File preview error:", error);
       setSubmitError("تعذر قراءة الملف. جرب صورة أو PDF أوضح.");
     }
   };
 
-  const performOCR = async (imageSrc: string, existingText?: string | null) => {
+  const performOCR = async (imageSrc: string, existingText?: string | null, fileName = "invoice") => {
     setIsScanning(true);
     setScanProgress(0);
+    setSubmitError(null);
 
     try {
       const extracted = await extractWithAiOrOcr(
-        { dataUrl: imageSrc, fileName: "invoice", text: existingText || undefined },
+        { dataUrl: imageSrc, fileName, text: existingText || undefined },
         setScanProgress,
       );
+      applyExtractedInvoiceData(extracted);
       setExtractedData(extracted);
 
       // Auto-fill form with extracted data
@@ -304,6 +326,7 @@ export default function AddInvoice() {
       setActiveTab("manual");
     } catch (error) {
       console.error("OCR Error:", error);
+      setSubmitError("تعذر على الذكاء الاصطناعي قراءة الفاتورة. جرّب صورة أو PDF أوضح.");
     } finally {
       setIsScanning(false);
     }
@@ -860,6 +883,21 @@ export default function AddInvoice() {
               >
                 <X className="w-3 h-3" />
               </button>
+            </div>
+          )}
+
+          {isScanning && (
+            <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-orange-200">جاري قراءة الفاتورة بالذكاء الاصطناعي...</span>
+                <span className="text-orange-400 font-medium">{scanProgress}%</span>
+              </div>
+              <div className="mt-2 h-2 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-orange-600 rounded-full transition-all duration-300"
+                  style={{ width: `${scanProgress}%` }}
+                />
+              </div>
             </div>
           )}
 
