@@ -207,6 +207,7 @@ export default function AddInvoice() {
   };
 
   const extractWithAiOrOcr = async (page: OcrPage, onProgress?: (progress: number) => void) => {
+    const localData = page.text ? extractInvoiceData(page.text) : null;
     try {
       const aiData = await aiExtractMutation.mutateAsync({
         text: page.text,
@@ -216,7 +217,12 @@ export default function AddInvoice() {
       onProgress?.(100);
       return {
         ...aiData,
+        invoiceNumber: localData?.invoiceNumber || aiData.invoiceNumber,
         vehicleNumber: reconcileVehicleNumber(aiData.vehicleNumber, page.text),
+        odometer: localData?.odometer || aiData.odometer,
+        date: localData?.date || aiData.date,
+        totalAmount: localData?.totalAmount || aiData.totalAmount,
+        description: localData?.description || aiData.description,
       };
     } catch (error) {
       console.warn("AI invoice extraction failed, falling back to OCR:", error);
